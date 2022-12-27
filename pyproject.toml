@@ -1,15 +1,19 @@
 [tool.poetry]
-name = "cell-detection"
+name = "cell_detection"
 version = "0.1.0"
 description = "This repo is used for detecting cells in 3d images"
 authors = ["albert schulz <albert.schulz@bdr.de>"]
 license = "GPL3"
 readme = "README.md"
-packages = [{include = "cell_detection"}]
+packages = [{ include = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.10"
 pyimagej = "^1.3.2"
+h5py = "^3.7.0"
+matplotlib = "^3.6.2"
+pyqt5 = "^5.15.7"
+napari = "^0.4.17"
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.10.0"
