@@ -90,7 +90,7 @@ class CellImage:
 
 
 if __name__ == "__main__":
-    path_to_file = get_project_root() / "data/raw/cell-detection/cropped_first_third.h5"
+    path_to_file = get_project_root() / "data/cell-detection/raw/cropped_first_third.h5"
     ci = CellImage(path=path_to_file)
     imslice = ci.get_slice(x=335)
     plt.imshow(imslice)

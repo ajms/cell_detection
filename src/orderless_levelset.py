@@ -98,39 +98,66 @@ def signed_distance_map(binary_image: np.ndarray) -> np.ndarray:
 
 
 if __name__ == "__main__":
-    path_to_file = get_project_root() / "data/raw/cell-detection/cropped_first_third.h5"
+    # eps 0.1 1e-2 1e-3, mu 1e-4 1e-5, sigma 1,2
+    # eps 1e-3, mu 1e-5, sigma 1
+    mu_list = [1e-4, 1e-5]
+    epsilon_list = [1e-1, 1e-2, 1e-3]
+    sigma_list = [1, 1.5, 2]
+
+    path_to_file = get_project_root() / "data/cell-detection/raw/cropped_first_third.h5"
     ci = CellImage(path=path_to_file)
     imslice = ci.image[
         355, :, :
     ]  # disk_level_set((100, 100), center=(30, 30), radius=20)
-    imslice = filters.gaussian(imslice, sigma=1)
-    # plt.imshow(imslice)
-    # plt.show()
+
     levelset = signed_distance_map(
         disk_level_set(imslice.shape, center=(50, 50), radius=40)
     )
+    for mu in mu_list:
+        for epsilon in epsilon_list:
+            for sigma in sigma_list:
 
-    res = minimize(
-        fun=ol_loss,
-        x0=levelset.flatten(),
-        method="L-BFGS-B",
-        jac=True,
-        args=(
-            imslice,
-            1,  # lambda 1
-            1,  # lambda 2
-            1e-6,  # mu
-            0,  # nu
-            1e-2,  # epsilon
-        ),
-        options={"disp": True},
-    )
-    Z = res.x.reshape(imslice.shape)
-    Z[Z > 50] = 50
+                imslice_smooth = filters.gaussian(imslice, sigma=sigma)
+                # plt.imshow(imslice)
+                # plt.show()
 
-    hf = plt.figure()
-    ha = hf.add_subplot(111, projection="3d")
-    X, Y = np.meshgrid(range(imslice.shape[1]), range(imslice.shape[0]))
-    ha.plot_surface(X, Y, Z)
+                res = minimize(
+                    fun=ol_loss,
+                    x0=levelset.flatten(),
+                    method="L-BFGS-B",
+                    jac=True,
+                    args=(
+                        imslice_smooth,
+                        1,  # lambda 1
+                        1,  # lambda 2
+                        mu,  # mu
+                        0,  # nu
+                        epsilon,  # epsilon
+                    ),
+                    options={"disp": True},
+                )
+                Z = res.x.reshape(imslice_smooth.shape)
 
-    plt.show()
+                hf = plt.figure()
+                ha = hf.add_subplot(221, projection="3d")
+                X, Y = np.meshgrid(
+                    range(imslice_smooth.shape[1]), range(imslice_smooth.shape[0])
+                )
+                ha.plot_surface(X, Y, Z, cmap="viridis")
+                hb = hf.add_subplot(223)
+                hb.imshow(imslice_smooth)
+                hc = hf.add_subplot(222)
+                img_segmentation = res.x.reshape(imslice_smooth.shape)
+                img_segmentation[img_segmentation > 0] = 1
+                img_segmentation[img_segmentation <= 0] = 0
+                print(
+                    f"{np.max(img_segmentation)=}, {np.min(img_segmentation)=}, {np.count_nonzero(img_segmentation)=}"
+                )
+                hc.imshow(img_segmentation, cmap="viridis")
+                hd = hf.add_subplot(224)
+                hd.imshow(imslice)
+                plt.savefig(
+                    get_project_root()
+                    / f"data/cell-detection/processed/result_eps{epsilon}_mu{mu}_sigma_{sigma}.png",
+                    dpi=300,
+                )
