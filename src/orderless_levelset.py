@@ -1,19 +1,18 @@
-import numpy as np
-from main import CellImage
-from src.utils.storage import get_project_root
-from skimage.segmentation import disk_level_set
-from skimage import io
-from omegaconf import DictConfig, OmegaConf
-import matplotlib.pyplot as plt
-from scipy.optimize import minimize
-from skimage import filters
-from scipy import ndimage
 import logging
+
 import hydra
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from src.utils.aim import experiment_context
+import numpy as np
 from aim import Image
+from omegaconf import DictConfig
+from scipy import ndimage
+from scipy.optimize import minimize
+from skimage import filters
+from skimage.segmentation import disk_level_set
+
+from main import CellImage
+from src.utils.aim import experiment_context
+from src.utils.storage import get_project_root
 
 logging.basicConfig(
     format="%(levelname)s [%(asctime)s]: %(message)s", level=logging.INFO

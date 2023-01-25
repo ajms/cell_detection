@@ -22,7 +22,39 @@ black = "^22.10.0"
 flake8 = "^6.0.0"
 isort = "^5.10.1"
 pre-commit-hooks = "^4.4.0"
+pytest = "^7.2.1"
+pre-commit = "^3.0.0"
+pathspec = "^0.11.0"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+addopts = "-ra -q --doctest-modules"
+minversion = "7.2.1"
+testpaths = ["tests", "src"]
+
+[tool.black]
+exclude = '''
+/(
+       \.eggs         # exclude a few common directories in the
+     | \.git          # root of the project
+     | \.hg
+     | \.mypy_cache
+     | \.tox
+     | _build
+     | buck-out
+     | build
+     | dist
+)/
+'''
+include = '\.pyi?$'
+line-length = 88
+
+[tool.isort]
+include_trailing_comma = true
+line_length = 88
+multi_line_output = 3
+profile = "black"
+skip_gitignore = true

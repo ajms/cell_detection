@@ -1,11 +1,13 @@
-from omegaconf import DictConfig, OmegaConf
-from contextlib import contextmanager
-import aim
-from pathlib import Path
-from src.utils.storage import get_project_root
-import logging
 import getpass
+import logging
 import subprocess
+from contextlib import contextmanager
+from pathlib import Path
+
+import aim
+from omegaconf import DictConfig, OmegaConf
+
+from src.utils.storage import get_project_root
 
 
 @contextmanager

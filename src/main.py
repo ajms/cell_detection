@@ -1,13 +1,14 @@
-import h5py
-import napari
 import logging
-from src.utils.storage import get_project_root
-import numpy as np
-from skimage import io, exposure, filters, morphology
-from skimage.segmentation import chan_vese
 from dataclasses import dataclass, field
-import matplotlib.pyplot as plt
 from pathlib import Path
+
+import h5py
+import matplotlib.pyplot as plt
+import napari
+import numpy as np
+from skimage import exposure, filters, io, morphology
+
+from src.utils.storage import get_project_root
 
 logging.basicConfig(
     format="%(levelname)s [%(asctime)s]: %(message)s", level=logging.INFO
