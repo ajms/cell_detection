@@ -1,0 +1,8 @@
+experiment: orderless_levelset
+ol:
+  epsilon: 1e-3
+  mu: 1e-5
+  nu: 1e-4
+  lambda1: 1.5
+  sigma: 1.5
+  lvlset_sigma: 30

@@ -10,3 +10,7 @@ help:
 test: ## Run pytest
 test:
 	pytest . -p no:logging -p no:warnings
+
+aim:  ## Aim: run aim UI in data/transfoermer/aim/
+aim:
+	cd data/cell-detection/aim; aim up
