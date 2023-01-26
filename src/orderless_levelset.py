@@ -11,7 +11,7 @@ from skimage import filters
 from skimage.segmentation import disk_level_set
 
 from main import CellImage
-from src.utils.aim import experiment_context
+from src.utils.aim import ScipyCallback, experiment_context
 from src.utils.storage import get_project_root
 
 logging.basicConfig(
@@ -90,7 +90,7 @@ def ol_loss(
         loss += loss_pos + loss_neg + loss_0
         dloss += dloss_pos + dloss_neg + dloss_0
 
-    logging.info(f"{loss=}, {np.max(dloss)=}, {np.min(dloss)=}")
+    logging.debug(f"{loss=}, {np.max(dloss)=}, {np.min(dloss)=}")
     return loss, dloss.flatten()
 
 
@@ -107,19 +107,21 @@ def main(cfg: DictConfig):
             get_project_root() / "data/cell-detection/raw/cropped_first_third.h5"
         )
         ci = CellImage(path=path_to_file)
-        imslice = ci.image[
-            355, :, :
-        ]  # disk_level_set((100, 100), center=(30, 30), radius=20)
+        imslice = ci.get_slice(
+            x=355
+        )  # disk_level_set((100, 100), center=(30, 30), radius=20)
 
         levelset = signed_distance_map(
             disk_level_set(imslice.shape, center=(50, 50), radius=40)
         )
-
+        imslice_smooth = filters.gaussian(imslice, sigma=cfg.preprocessing.sigma)
         lambda2 = 2 - cfg.ol.lambda1
 
-        imslice_smooth = filters.gaussian(imslice, sigma=cfg.ol.sigma)
+        # initialise callback for aim tracking of optimisation
+        scallback = ScipyCallback(
+            aim_run=aim_run, cfg=cfg, fun=ol_loss, image=imslice_smooth, lambda2=lambda2
+        )
 
-        # TODO build callback for aim
         res = minimize(
             fun=ol_loss,
             x0=levelset.flatten(),
@@ -134,12 +136,13 @@ def main(cfg: DictConfig):
                 cfg.ol.epsilon,  # epsilon
             ),
             options={"disp": True},
+            callback=scallback.scipy_optimize_callback,
         )
 
         logging.info("Preparing plots")
         # levelset function 3d
         Z = filters.gaussian(
-            res.x.reshape(imslice_smooth.shape), sigma=cfg.ol.lvlset_sigma
+            res.x.reshape(imslice_smooth.shape), sigma=cfg.postprocessing.sigma
         )
         X, Y = np.meshgrid(
             range(imslice_smooth.shape[1]),
@@ -168,18 +171,29 @@ def main(cfg: DictConfig):
 
         # track stats
         logging.info("Tracking results in aim...")
-        aim_run.track(np.max(img_segmentation), "max", context={"hparam": True})
-        aim_run.track(np.max(img_segmentation), "min", context={"hparam": True})
+        non_zero = np.count_nonzero(img_segmentation)
         aim_run.track(
-            np.count_nonzero(img_segmentation), "num_zeros", context={"hparam": True}
+            {
+                "min": np.min(img_segmentation),
+                "max": np.max(img_segmentation),
+                "num_zero": non_zero,
+                "num_zero_prc": non_zero / np.product(img_segmentation.shape),
+            },
+            context={"context": "final"},
         )
 
         # track images
         logging.info("Tracking images in aim...")
-        aim_run.track(Image(fig1), name="levelset", context={"hparam": True})
-        aim_run.track(Image(fig2), name="smoothened image", context={"hparam": True})
-        aim_run.track(Image(fig3), name="segmentation", context={"hparam": True})
-        aim_run.track(Image(fig4), name="original image", context={"hparam": True})
+        aim_run.track(
+            {
+                "final levelset": Image(fig1),
+                "smoothened image": Image(fig2),
+                "segmentation": Image(fig3),
+                "original image": Image(fig4),
+            },
+            context={"context": "final"},
+        )
+        plt.close()
 
         logging.info("Finished tracking.")
 

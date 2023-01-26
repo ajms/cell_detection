@@ -26,8 +26,7 @@ class CellImage:
     def __post_init__(self):
         self.hf = h5py.File(self.path, "r")
         self.dset = self.hf[list(self.hf.keys())[-1]]
-        logging.info(f"{list(self.hf.keys())=}")
-        self.equalize_histogram()
+        logging.debug(f"{list(self.hf.keys())=}")
 
     def read_image(self):
         self.image = self.dset[0, :, 890:, 950:1500, 0]
@@ -38,12 +37,13 @@ class CellImage:
     def equalize_histogram(self):
         path_to_equalized = self.path.parent / f"{self.path.stem}_eq.tif"
         if path_to_equalized.exists():
+            logging.info(f"Reading image from harddisk: {path_to_equalized}")
             self.image = io.imread(path_to_equalized)
         else:
             logging.info("equalizing histogram")
             self.read_image()
             self.image = exposure.equalize_hist(self.image)
-            logging.info("equalizing finished")
+            logging.info(f"Writing image to harddisk: {path_to_equalized}")
             io.imsave(path_to_equalized, self.image)
 
     def edge_detection(self, show: bool = False):
@@ -67,20 +67,28 @@ class CellImage:
 
     def get_slice(
         self,
-        x=int | None,
-        y=int | None,
-        z=int | None,
+        x: int | None = None,
+        y: int | None = None,
+        z: int | None = None,
         show: bool = False,
     ) -> np.ndarray:
-        if x:
-            imslice = self.dset[0, x, :, :, 0]
-        elif y:
-            imslice = self.dset[0, :, y, :, 0]
-        elif z:
-            imslice = self.dset[0, :, :, z, 0]
-        if show:
-            io.imshow(imslice)
-            plt.show()
+        path_to_slice = self.path.parent / f"{self.path.stem}_eq_{x}_{y}_{z}.tif"
+        if path_to_slice.exists():
+            logging.info(f"Reading slice from harddisk: {path_to_slice}")
+            imslice = io.imread(path_to_slice)
+        else:
+            self.equalize_histogram()
+            if x:
+                imslice = self.image[x, :, :]
+            elif y:
+                imslice = self.image[:, y, :]
+            elif z:
+                imslice = self.image[:, :, z]
+            logging.info(f"Writing slice to harddisk: {path_to_slice}")
+            io.imsave(path_to_slice, imslice)
+            if show:
+                io.imshow(imslice)
+                plt.show()
         return imslice
 
     def show_3d(self, image: np.ndarray | None = None):
