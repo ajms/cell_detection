@@ -8,8 +8,16 @@ preprocessing:
   sigma: 1
 postprocessing:
   sigma: 50
+image:
+  path: cell-detection/raw/cropped_first_third.h5
+  slice:
+    x: 355
+    y: None
+    z: None
 
 hydra:
+  job:
+    chdir: True
   run:
     dir: ./data/cell-detection/exp/${now:%Y-%m-%d_%H:%M:%S}
   sweep:
