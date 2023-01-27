@@ -11,5 +11,6 @@ Install dependencies by
 poetry install
 ```
 
-`orderless_levelsets.py` implements an orderless segmentation method
-`main.py` contains the class for reading and preprocessing the imagesn
+`orderless_levelsets.py` implements an orderless image loss function for segmentation
+`segmentation.py` runs the orderless segmentation method
+`image_loader.py` contains the class for reading and preprocessing the images
