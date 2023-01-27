@@ -70,25 +70,39 @@ class CellImage:
         x: int | None = None,
         y: int | None = None,
         z: int | None = None,
+        equalize: None | str = "global",
+        regenerate: bool = False,
         show: bool = False,
     ) -> np.ndarray:
         path_to_slice = self.path.parent / f"{self.path.stem}_eq_{x}_{y}_{z}.tif"
-        if path_to_slice.exists():
+        if path_to_slice.exists() and not regenerate:
             logging.info(f"Reading slice from harddisk: {path_to_slice}")
             imslice = io.imread(path_to_slice)
         else:
-            self.equalize_histogram()
+            if equalize == "global":
+                self.equalize_histogram()
+            else:
+                self.read_image()
             if x:
                 imslice = self.image[x, :, :]
             elif y:
                 imslice = self.image[:, y, :]
             elif z:
                 imslice = self.image[:, :, z]
-            logging.info(f"Writing slice to harddisk: {path_to_slice}")
-            io.imsave(path_to_slice, imslice)
+
             if show:
                 io.imshow(imslice)
                 plt.show()
+            if equalize == "local":
+                logging.info("equalizing locally")
+                imslice[imslice < 3e4] = 3e4
+                b = np.max(imslice)
+                a = np.min(imslice)
+                imslice = (imslice - a) / (b - a)
+                assert np.round(np.max(imslice), 0) == 1, np.max(imslice)
+                assert np.round(np.min(imslice), 0) == 0, np.min(imslice)
+            logging.info(f"Writing slice to harddisk: {path_to_slice}")
+            io.imsave(path_to_slice, imslice)
         return imslice
 
     def show_3d(self, image: np.ndarray | None = None):
@@ -101,7 +115,7 @@ class CellImage:
 if __name__ == "__main__":
     path_to_file = get_project_root() / "data/cell-detection/raw/cropped_first_third.h5"
     ci = CellImage(path=path_to_file)
-    imslice = ci.get_slice(x=335)
+    imslice = ci.get_slice(x=356, equalize="local", regenerate=False)
     plt.imshow(imslice)
     plt.show()
 

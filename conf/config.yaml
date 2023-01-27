@@ -1,17 +1,18 @@
 experiment: orderless_levelset
 ol:
-  epsilon: 1e-3
-  mu: 1e-4
+  epsilon: 1e-2
+  mu: 1e-5
   nu: 1e-4
-  lambda1: 1.5
+  lambda1: 1.1
 preprocessing:
-  sigma: 1
+  sigma: 0.1
 postprocessing:
-  sigma: 50
+  sigma: 0.5
 image:
   path: cell-detection/raw/cropped_first_third.h5
+  equalize: local
   slice:
-    x: 355
+    x: 356
     y: None
     z: None
 

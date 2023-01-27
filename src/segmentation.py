@@ -27,7 +27,7 @@ def main(cfg: DictConfig):
         path_to_file = get_project_root() / "data" / cfg.image.path
         ci = CellImage(path=path_to_file)
         imslice = ci.get_slice(
-            x=cfg.image.slice.x
+            x=cfg.image.slice.x, equalize=cfg.image.equalize
         )  # disk_level_set((100, 100), center=(30, 30), radius=20)
 
         levelset = signed_distance_map(

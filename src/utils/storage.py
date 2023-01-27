@@ -5,7 +5,7 @@ from pathlib import Path
 
 @lru_cache
 def get_project_root() -> Path:
-    return Path.cwd()
+    return Path(__file__).absolute().parent.parent.parent
 
 
 @dataclass
