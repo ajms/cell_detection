@@ -17,8 +17,8 @@ def ol_loss(
         image = image.astype(np.float64)
         image = image / np.max(image)
 
-    m, n = image.shape
-    levelset = np.reshape(levelset, (m, n))
+    m, n, o = image.shape
+    levelset = np.reshape(levelset, (m, n, o))
     mu1 = np.mean(image[levelset > 0])
     mu2 = np.mean(image[levelset < 0])
     loss = 0

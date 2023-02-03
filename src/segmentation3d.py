@@ -26,19 +26,27 @@ def main(cfg: DictConfig):
     with experiment_context(cfg) as aim_run:
         path_to_file = get_project_root() / "data" / cfg.image.path
         ci = CellImage(path=path_to_file)
-        imslice = ci.get_slice(
-            x=cfg.image.slice.x, equalize=cfg.image.equalize
-        )  # disk_level_set((100, 100), center=(30, 30), radius=20)
+
+        ci.read_image(
+            equalize=cfg.image.equalize,
+            lower_bound=cfg.image.lower_bound,
+            unsharp_mask=cfg.image.unsharp_mask,
+            regenerate=cfg.image.regenerate,
+        )
+        image = ci.image[300:400, :, :]
+
+        del ci
 
         levelset = signed_distance_map(
-            disk_level_set(imslice.shape, center=(50, 50), radius=40)
+            disk_level_set(image.shape, center=(50, 50, 50), radius=40)
         )
-        imslice_smooth = filters.gaussian(imslice, sigma=cfg.preprocessing.sigma)
+
+        image = filters.gaussian(image, sigma=cfg.preprocessing.sigma)
         lambda2 = 2 - cfg.ol.lambda1
 
         # initialise callback for aim tracking of optimisation
         scallback = ScipyCallback(
-            aim_run=aim_run, cfg=cfg, fun=ol_loss, image=imslice_smooth, lambda2=lambda2
+            aim_run=aim_run, cfg=cfg, fun=ol_loss, image=None, lambda2=lambda2
         )
 
         res = minimize(
@@ -47,7 +55,7 @@ def main(cfg: DictConfig):
             method="L-BFGS-B",
             jac=True,
             args=(
-                imslice_smooth,
+                image,
                 cfg.ol.lambda1,  # lambda 1
                 lambda2,  # lambda 2
                 cfg.ol.mu,  # mu
@@ -61,15 +69,15 @@ def main(cfg: DictConfig):
         logging.info("Preparing plots")
         # levelset function 3d
         Z = filters.gaussian(
-            res.x.reshape(imslice_smooth.shape), sigma=cfg.postprocessing.sigma
+            res.x.reshape(image.shape)[0, :, :], sigma=cfg.postprocessing.sigma
         )
         X, Y = np.meshgrid(
-            range(imslice_smooth.shape[1]),
-            range(imslice_smooth.shape[0]),
+            range(image.shape[1]),
+            range(image.shape[2]),
         )
 
         # segmentation
-        img_segmentation = res.x.reshape(imslice_smooth.shape)
+        img_segmentation = res.x.reshape(image.shape)
         img_segmentation[img_segmentation > 0] = 1
         img_segmentation[img_segmentation <= 0] = 0
         io.imsave(Path.cwd() / "segmentation.tif", img_segmentation)
@@ -85,9 +93,9 @@ def main(cfg: DictConfig):
         hd = fig4.add_subplot()
 
         ha.plot_surface(X, Y, Z, cmap="viridis")
-        hb.imshow(imslice_smooth)
-        hc.imshow(img_segmentation, cmap="viridis")
-        hd.imshow(imslice)
+        hb.imshow(image[0, :, :])
+        hc.imshow(img_segmentation[0, :, :], cmap="viridis")
+        hd.imshow(image[0, :, :])
 
         # track stats
         logging.info("Tracking results in aim...")

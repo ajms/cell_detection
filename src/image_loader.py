@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import aim
 import h5py
 import matplotlib.pyplot as plt
 import napari
@@ -28,23 +29,55 @@ class CellImage:
         self.dset = self.hf[list(self.hf.keys())[-1]]
         logging.debug(f"{list(self.hf.keys())=}")
 
-    def read_image(self):
-        self.image = self.dset[0, :, 890:, 950:1500, 0]
-        logging.info(f"{self.image.shape=}")
-        logging.info(f"{self.image.dtype=}")
-        logging.info(f"{self.image.min()=}, {self.image.max()=}")
-
-    def equalize_histogram(self):
-        path_to_equalized = self.path.parent / f"{self.path.stem}_eq.tif"
-        if path_to_equalized.exists():
-            logging.info(f"Reading image from harddisk: {path_to_equalized}")
-            self.image = io.imread(path_to_equalized)
+    def read_image(
+        self,
+        regenerate: bool = False,
+        equalize: None | str = None,
+        lower_bound: float = 0,
+        unsharp_mask: dict = {"radius": 0, "amount": 0},
+    ):
+        path_to_img = (
+            self.path.parent
+            / f"{self.path.stem}_eq_{equalize}_lower_{lower_bound}_unsharp_{unsharp_mask['radius']}_{unsharp_mask['amount']}.tif"
+        )
+        if path_to_img.exists() and not regenerate:
+            logging.info(f"Reading slice from harddisk: {path_to_img}")
+            self.image = io.imread(path_to_img)
         else:
-            logging.info("equalizing histogram")
-            self.read_image()
-            self.image = exposure.equalize_hist(self.image)
-            logging.info(f"Writing image to harddisk: {path_to_equalized}")
-            io.imsave(path_to_equalized, self.image)
+            self.image = self.dset[0, :, 890:, 950:1500, 0]
+            logging.info(f"{self.image.shape=}")
+            logging.info(f"{self.image.dtype=}")
+            logging.info(f"{self.image.min()=}, {self.image.max()=}")
+            if equalize == "global":
+                self.image = self.equalize_histogram(self.image)
+            if equalize == "local":
+                self.image = self.equalize_local(
+                    self.image, lower_bound=lower_bound, unsharp_mask=unsharp_mask
+                )
+            logging.info(f"Writing slice to harddisk: {path_to_img}")
+            io.imsave(path_to_img, self.image)
+
+    def equalize_histogram(self, image: np.ndarray):
+        logging.info("equalizing histogram")
+        return exposure.equalize_hist(self.image)
+
+    def equalize_local(
+        self, image: np.ndarray, lower_bound: float, unsharp_mask: dict
+    ) -> np.ndarray:
+        logging.info(f"equalizing locally: {np.min(self.image)=},{np.max(self.image)=}")
+        if lower_bound >= 1:
+            image[image < lower_bound] = lower_bound
+            logging.info(f"{np.average(image)=} before unsharp mask")
+        b = np.max(image)
+        a = np.min(image)
+        image = (image - a) / (b - a)
+        assert np.round(np.max(image), 0) == 1, np.max(image)
+        assert np.round(np.min(image), 0) == 0, np.min(image)
+        image = filters.unsharp_mask(image, **unsharp_mask)
+        if lower_bound < 1:
+            logging.info(f"{np.average(image)=} after unsharp mask")
+            image[image < lower_bound] = lower_bound
+        return image
 
     def edge_detection(self, show: bool = False):
         logging.info("detecting edges")
@@ -71,17 +104,20 @@ class CellImage:
         y: int | None = None,
         z: int | None = None,
         equalize: None | str = "global",
+        lower_bound: float = 3e-4,
+        unsharp_mask: dict = {"radius": 0, "amount": 0},
         regenerate: bool = False,
         show: bool = False,
     ) -> np.ndarray:
-        path_to_slice = self.path.parent / f"{self.path.stem}_eq_{x}_{y}_{z}.tif"
+        path_to_slice = (
+            self.path.parent
+            / f"{self.path.stem}_eq_{x}_{y}_{z}_lower_{lower_bound}_unsharp_{unsharp_mask['radius']}_{unsharp_mask['amount']}.tif"
+        )
         if path_to_slice.exists() and not regenerate:
             logging.info(f"Reading slice from harddisk: {path_to_slice}")
             imslice = io.imread(path_to_slice)
         else:
-            if equalize == "global":
-                self.equalize_histogram()
-            else:
+            if not hasattr(self, "image"):
                 self.read_image()
             if x:
                 imslice = self.image[x, :, :]
@@ -90,19 +126,20 @@ class CellImage:
             elif z:
                 imslice = self.image[:, :, z]
 
+            if equalize == "local":
+                imslice = self.equalize_local(
+                    imslice, lower_bound=lower_bound, unsharp_mask=unsharp_mask
+                )
+            elif equalize == "global":
+                imslice = self.equalize_histogram(imslice)
+
+            logging.info(f"Writing slice to harddisk: {path_to_slice}")
+            io.imsave(path_to_slice, imslice)
+
             if show:
                 io.imshow(imslice)
                 plt.show()
-            if equalize == "local":
-                logging.info("equalizing locally")
-                imslice[imslice < 3e4] = 3e4
-                b = np.max(imslice)
-                a = np.min(imslice)
-                imslice = (imslice - a) / (b - a)
-                assert np.round(np.max(imslice), 0) == 1, np.max(imslice)
-                assert np.round(np.min(imslice), 0) == 0, np.min(imslice)
-            logging.info(f"Writing slice to harddisk: {path_to_slice}")
-            io.imsave(path_to_slice, imslice)
+
         return imslice
 
     def show_3d(self, image: np.ndarray | None = None):
@@ -115,8 +152,37 @@ class CellImage:
 if __name__ == "__main__":
     path_to_file = get_project_root() / "data/cell-detection/raw/cropped_first_third.h5"
     ci = CellImage(path=path_to_file)
-    imslice = ci.get_slice(x=356, equalize="local", regenerate=False)
-    plt.imshow(imslice)
-    plt.show()
+    repo = get_project_root() / "data/cell-detection/aim"
+    experiment = "unsharp mask"
+    lower_bound = 0
+    # amount = 1
+    radius = 80
 
-    ci.show_3d()
+    aim_run = aim.Run(
+        repo=str(repo),
+        experiment=experiment,
+    )
+    aim_run["metadata"] = {"type": "unsharp_mask"}
+    for amount in range(2, 10, 1):
+        imslice = ci.get_slice(
+            x=356,
+            equalize="local",
+            lower_bound=lower_bound,
+            unsharp_mask={"radius": radius, "amount": amount},
+            regenerate=True,
+        )
+        fig = plt.figure()
+        ha = fig.add_subplot()
+        ha.imshow(imslice)
+        aim_run.track(
+            aim.Image(fig),
+            "unsharp mask",
+            step=radius,
+            context={
+                "lower_bound": lower_bound,
+                "amount": amount,
+                "radius": radius,
+            },
+        )
+    aim_run.close()
+    # ci.show_3d()

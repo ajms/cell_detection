@@ -75,7 +75,7 @@ class ScipyCallback:
         aim_run: aim.Run,
         cfg: OmegaConf,
         fun: Callable,
-        image: np.ndarray,
+        image: None | np.ndarray,
         **kwargs,
     ):
         self.aim_run = aim_run
@@ -84,27 +84,37 @@ class ScipyCallback:
         self.image = image
         self.fun = fun
         self.kwargs = kwargs
-        self.X, self.Y = np.meshgrid(
-            range(self.image.shape[1]),
-            range(self.image.shape[0]),
-        )
+        if image:
+            self.X, self.Y = np.meshgrid(
+                range(self.image.shape[1]),
+                range(self.image.shape[0]),
+            )
 
     def scipy_optimize_callback(self, xk: np.ndarray):
         self.step += 1
         loss, dloss = self.fun(xk, self.image, **self.cfg.ol, **self.kwargs)
-
-        fig = plt.figure()
-        ha = fig.add_subplot(projection="3d")
-        ha.plot_surface(self.X, self.Y, xk.reshape(self.image.shape), cmap="viridis")
+        if self.image:
+            fig = plt.figure()
+            ha = fig.add_subplot(projection="3d")
+            ha.plot_surface(
+                self.X, self.Y, xk.reshape(self.image.shape), cmap="viridis"
+            )
+            self.aim_run.track(
+                {
+                    "levelset": aim.Image(fig),
+                },
+                step=self.step,
+                context={"context": "step"},
+            )
 
         self.aim_run.track(
             {
                 "loss": loss,
                 "max_dloss": np.max(dloss),
                 "min_dloss": np.min(dloss),
-                "levelset": aim.Image(fig),
             },
             step=self.step,
             context={"context": "step"},
         )
+
         plt.close()
