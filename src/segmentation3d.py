@@ -124,7 +124,6 @@ def main(cfg: DictConfig):
         aim_run.track(
             {
                 "final levelset": plot_3d(levelset[levelset_center, :, :]),
-                "smoothened image": plot_2d(image),
                 "segmentation": plot_2d(img_segmentation[levelset_center, :, :]),
             },
             context={"context": "final"},
