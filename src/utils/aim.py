@@ -11,6 +11,7 @@ import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from src.utils.storage import get_project_root
+from src.visualization import plot_3d
 
 
 @contextmanager
@@ -76,6 +77,7 @@ class ScipyCallback:
         cfg: OmegaConf,
         fun: Callable,
         image: None | np.ndarray,
+        x: None | tuple[int],
         **kwargs,
     ):
         self.aim_run = aim_run
@@ -83,29 +85,38 @@ class ScipyCallback:
         self.step = 0
         self.image = image
         self.fun = fun
+        self.x = x
         self.kwargs = kwargs
-        if image:
-            self.X, self.Y = np.meshgrid(
-                range(self.image.shape[1]),
-                range(self.image.shape[0]),
-            )
+
+        self.X, self.Y = np.meshgrid(
+            range(self.image.shape[2]),
+            range(self.image.shape[1]),
+        )
 
     def scipy_optimize_callback(self, xk: np.ndarray):
         self.step += 1
         loss, dloss = self.fun(xk, self.image, **self.cfg.ol, **self.kwargs)
-        if self.image:
-            fig = plt.figure()
-            ha = fig.add_subplot(projection="3d")
-            ha.plot_surface(
-                self.X, self.Y, xk.reshape(self.image.shape), cmap="viridis"
-            )
-            self.aim_run.track(
+        if self.x:
+            surfaces = {
+                f"levelset at {xl}": plot_3d(
+                    levelset=xk.reshape(self.image.shape)[xl, :, :], X=self.X, Y=self.Y
+                )
+                for xl in self.x
+            }
+        else:
+            surfaces = (
                 {
-                    "levelset": aim.Image(fig),
+                    "levelset": plot_3d(
+                        xk.reshape(self.image.shape), X=self.X, Y=self.Y
+                    ),
                 },
-                step=self.step,
-                context={"context": "step"},
             )
+
+        self.aim_run.track(
+            value=surfaces,
+            step=self.step,
+            context={"context": "step"},
+        )
 
         self.aim_run.track(
             {

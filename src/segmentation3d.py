@@ -4,7 +4,6 @@ from pathlib import Path
 import hydra
 import matplotlib.pyplot as plt
 import numpy as np
-from aim import Image
 from omegaconf import DictConfig
 from scipy.optimize import minimize
 from skimage import filters, io
@@ -14,6 +13,7 @@ from image_loader import CellImage
 from src.orderless_levelset import ol_loss, signed_distance_map
 from src.utils.aim import ScipyCallback, experiment_context
 from src.utils.storage import get_project_root
+from src.visualization import plot_2d, plot_3d
 
 logging.basicConfig(
     format="%(levelname)s [%(asctime)s]: %(message)s", level=logging.INFO
@@ -33,20 +33,48 @@ def main(cfg: DictConfig):
             unsharp_mask=cfg.image.unsharp_mask,
             regenerate=cfg.image.regenerate,
         )
-        image = ci.image[300:400, :, :]
+        image = ci.image[300:400, 200:450, 180:400]
 
         del ci
 
+        levelset_center = image.shape[0] // 2
+
         levelset = signed_distance_map(
-            disk_level_set(image.shape, center=(50, 50, 50), radius=40)
+            disk_level_set(image.shape, center=(levelset_center, 100, 100), radius=40)
         )
 
         image = filters.gaussian(image, sigma=cfg.preprocessing.sigma)
         lambda2 = 2 - cfg.ol.lambda1
 
+        logging.info("Initial plots")
+
+        # levelset function 3d
+        logging.debug(
+            f"{levelset[levelset_center,:,:].shape=}, {levelset[levelset_center,:,:].max()=}, {levelset[levelset_center,:,:].min()=}"
+        )
+        aim_run.track(
+            {
+                "initial levelset": plot_3d(levelset[levelset_center, :, :]),
+                "smoothened image": plot_2d(image[levelset_center, :, :]),
+            },
+            context={"context": "final", "x": levelset_center},
+        )
+        plt.close()
+
+        logging.info("Finished initial tracking.")
+
         # initialise callback for aim tracking of optimisation
         scallback = ScipyCallback(
-            aim_run=aim_run, cfg=cfg, fun=ol_loss, image=None, lambda2=lambda2
+            aim_run=aim_run,
+            cfg=cfg,
+            fun=ol_loss,
+            image=image,
+            lambda2=lambda2,
+            x=(
+                levelset_center // 2,
+                levelset_center,
+                levelset_center + levelset_center // 2,
+            ),
         )
 
         res = minimize(
@@ -68,34 +96,13 @@ def main(cfg: DictConfig):
 
         logging.info("Preparing plots")
         # levelset function 3d
-        Z = filters.gaussian(
-            res.x.reshape(image.shape)[0, :, :], sigma=cfg.postprocessing.sigma
-        )
-        X, Y = np.meshgrid(
-            range(image.shape[1]),
-            range(image.shape[2]),
-        )
+        Z = filters.gaussian(res.x.reshape(image.shape), sigma=cfg.postprocessing.sigma)
 
         # segmentation
         img_segmentation = res.x.reshape(image.shape)
         img_segmentation[img_segmentation > 0] = 1
         img_segmentation[img_segmentation <= 0] = 0
         io.imsave(Path.cwd() / "segmentation.tif", img_segmentation)
-
-        # create figures for tracking
-        fig1 = plt.figure()
-        ha = fig1.add_subplot(projection="3d")
-        fig2 = plt.figure()
-        hb = fig2.add_subplot()
-        fig3 = plt.figure()
-        hc = fig3.add_subplot()
-        fig4 = plt.figure()
-        hd = fig4.add_subplot()
-
-        ha.plot_surface(X, Y, Z, cmap="viridis")
-        hb.imshow(image[0, :, :])
-        hc.imshow(img_segmentation[0, :, :], cmap="viridis")
-        hd.imshow(image[0, :, :])
 
         # track stats
         logging.info("Tracking results in aim...")
@@ -114,10 +121,9 @@ def main(cfg: DictConfig):
         logging.info("Tracking images in aim...")
         aim_run.track(
             {
-                "final levelset": Image(fig1),
-                "smoothened image": Image(fig2),
-                "segmentation": Image(fig3),
-                "original image": Image(fig4),
+                "final levelset": plot_3d(Z[levelset_center, :, :]),
+                "smoothened image": plot_2d(image),
+                "segmentation": plot_2d(img_segmentation[levelset_center, :, :]),
             },
             context={"context": "final"},
         )
