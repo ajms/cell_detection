@@ -96,27 +96,30 @@ class ScipyCallback:
     def scipy_optimize_callback(self, xk: np.ndarray):
         self.step += 1
         loss, dloss = self.fun(xk, self.image, **self.cfg.ol, **self.kwargs)
-        if self.x:
-            surfaces = {
-                f"levelset at {xl}": plot_3d(
-                    levelset=xk.reshape(self.image.shape)[xl, :, :], X=self.X, Y=self.Y
+        if self.step % 10 == 0:
+            if self.x:
+                surfaces = {
+                    f"levelset at {xl}": plot_3d(
+                        levelset=xk.reshape(self.image.shape)[xl, :, :],
+                        X=self.X,
+                        Y=self.Y,
+                    )
+                    for xl in self.x
+                }
+            else:
+                surfaces = (
+                    {
+                        "levelset": plot_3d(
+                            xk.reshape(self.image.shape), X=self.X, Y=self.Y
+                        ),
+                    },
                 )
-                for xl in self.x
-            }
-        else:
-            surfaces = (
-                {
-                    "levelset": plot_3d(
-                        xk.reshape(self.image.shape), X=self.X, Y=self.Y
-                    ),
-                },
-            )
 
-        self.aim_run.track(
-            value=surfaces,
-            step=self.step,
-            context={"context": "step"},
-        )
+            self.aim_run.track(
+                value=surfaces,
+                step=self.step,
+                context={"context": "step"},
+            )
 
         self.aim_run.track(
             {
