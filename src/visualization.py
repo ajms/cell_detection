@@ -7,7 +7,9 @@ def plot_2d(image: np.ndarray) -> aim.Image:
     fig = plt.figure()
     subplot = fig.add_subplot()
     subplot.imshow(image, cmap="viridis")
-    return aim.Image(fig)
+    aim_image = aim.Image(fig)
+    plt.close()
+    return aim_image
 
 
 def plot_3d(
@@ -27,4 +29,6 @@ def plot_3d(
         levelset,
         cmap="viridis",
     )
-    return aim.Image(fig)
+    aim_image = aim.Image(fig)
+    plt.close()
+    return aim_image

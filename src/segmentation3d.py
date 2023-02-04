@@ -128,7 +128,6 @@ def main(cfg: DictConfig):
             },
             context={"context": "final"},
         )
-        plt.close()
 
         logging.info("Finished tracking.")
 
