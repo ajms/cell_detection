@@ -17,9 +17,15 @@ image:
     radius: 80
   lower_bound: 0
   slice:
-    x: None
-    y: None
-    z: None
+    x:
+      - 300
+      - 400
+    y:
+      - 200
+      - 450
+    z:
+      - 180
+      - 400
 
 hydra:
   job:

@@ -33,7 +33,11 @@ def main(cfg: DictConfig):
             unsharp_mask=cfg.image.unsharp_mask,
             regenerate=cfg.image.regenerate,
         )
-        image = ci.image[300:400, 200:450, 180:400]
+        image = ci.image[
+            cfg.image.slice.x[0] : cfg.image.slice.x[1],
+            cfg.image.slice.y[0] : cfg.image.slice.y[1],
+            cfg.image.slice.z[0] : cfg.image.slice.z[1],
+        ]
 
         del ci
 
@@ -95,8 +99,6 @@ def main(cfg: DictConfig):
         )
 
         logging.info("Preparing plots")
-        # levelset function 3d
-        Z = filters.gaussian(res.x.reshape(image.shape), sigma=cfg.postprocessing.sigma)
 
         # segmentation
         img_segmentation = res.x.reshape(image.shape)
@@ -121,7 +123,7 @@ def main(cfg: DictConfig):
         logging.info("Tracking images in aim...")
         aim_run.track(
             {
-                "final levelset": plot_3d(Z[levelset_center, :, :]),
+                "final levelset": plot_3d(levelset[levelset_center, :, :]),
                 "smoothened image": plot_2d(image),
                 "segmentation": plot_2d(img_segmentation[levelset_center, :, :]),
             },
