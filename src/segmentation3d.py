@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 
 import hydra
-import matplotlib.pyplot as plt
 import numpy as np
 from omegaconf import DictConfig
 from scipy.optimize import minimize
@@ -41,10 +40,16 @@ def main(cfg: DictConfig):
 
         del ci
 
-        levelset_center = image.shape[0] // 2
+        levelset_center = np.array(image.shape) // 2
+        levelset_radius = int(levelset_center.min() * 0.8)
+        logging.info(f"{levelset_center=}, {levelset_radius=}")
 
         levelset = signed_distance_map(
-            disk_level_set(image.shape, center=(levelset_center, 100, 100), radius=40)
+            disk_level_set(
+                image.shape,
+                center=levelset_center,
+                radius=levelset_radius,
+            )
         )
 
         image = filters.gaussian(image, sigma=cfg.preprocessing.sigma)
@@ -53,17 +58,16 @@ def main(cfg: DictConfig):
         logging.info("Initial plots")
 
         # levelset function 3d
-        logging.debug(
-            f"{levelset[levelset_center,:,:].shape=}, {levelset[levelset_center,:,:].max()=}, {levelset[levelset_center,:,:].min()=}"
+        logging.info(
+            f"{levelset[levelset_center[0],:,:].shape=}, {levelset[levelset_center[0],:,:].max()=}, {levelset[levelset_center[0],:,:].min()=}"
         )
         aim_run.track(
             {
-                "initial levelset": plot_3d(levelset[levelset_center, :, :]),
-                "smoothened image": plot_2d(image[levelset_center, :, :]),
+                "initial levelset": plot_3d(levelset[levelset_center[0], :, :]),
+                "smoothened image": plot_2d(image[levelset_center[0], :, :]),
             },
-            context={"context": "final", "x": levelset_center},
+            context={"context": "final", "x": f"{levelset_center[0]}"},
         )
-        plt.close()
 
         logging.info("Finished initial tracking.")
 
@@ -75,8 +79,8 @@ def main(cfg: DictConfig):
             image=image,
             lambda2=lambda2,
             x=(
-                2 * levelset_center // 3,
-                4 * levelset_center // 3,
+                2 * levelset_center[0] // 3,
+                4 * levelset_center[0] // 3,
             ),
         )
 
@@ -98,11 +102,14 @@ def main(cfg: DictConfig):
         )
 
         logging.info("Preparing plots")
+        levelset = res.x.reshape(image.shape)
+        del res
+        logging.info(f"{np.count(np.abs(levelset) < cfg.ol.epsilon)=}")
+        io.imsave(Path.cwd() / "levelset.tif", levelset)
 
         # segmentation
-        img_segmentation = res.x.reshape(image.shape)
+        img_segmentation = np.zeros(levelset.shape)
         img_segmentation[img_segmentation > 0] = 1
-        img_segmentation[img_segmentation <= 0] = 0
         io.imsave(Path.cwd() / "segmentation.tif", img_segmentation)
 
         # track stats
@@ -122,8 +129,8 @@ def main(cfg: DictConfig):
         logging.info("Tracking images in aim...")
         aim_run.track(
             {
-                "final levelset": plot_3d(levelset[levelset_center, :, :]),
-                "segmentation": plot_2d(img_segmentation[levelset_center, :, :]),
+                "final levelset": plot_3d(levelset[levelset_center[0], :, :]),
+                "segmentation": plot_2d(img_segmentation[levelset_center[0], :, :]),
             },
             context={"context": "final"},
         )

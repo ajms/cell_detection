@@ -18,8 +18,8 @@ image:
   lower_bound: 0
   slice:
     x:
-      - 310
-      - 390
+      - 330
+      - 370
     y:
       - 50
       - -50
