@@ -96,7 +96,7 @@ class ScipyCallback:
     def scipy_optimize_callback(self, xk: np.ndarray):
         self.step += 1
         loss, dloss = self.fun(xk, self.image, **self.cfg.ol, **self.kwargs)
-        if self.step % 10 == 0:
+        if self.step % 7 == 0:
             if self.x:
                 surfaces = {
                     f"levelset at {xl}": plot_3d(

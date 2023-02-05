@@ -75,9 +75,8 @@ def main(cfg: DictConfig):
             image=image,
             lambda2=lambda2,
             x=(
-                levelset_center // 2,
-                levelset_center,
-                levelset_center + levelset_center // 2,
+                2 * levelset_center // 3,
+                4 * levelset_center // 3,
             ),
         )
 
