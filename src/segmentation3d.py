@@ -6,7 +6,7 @@ import numpy as np
 from omegaconf import DictConfig
 from scipy.optimize import minimize
 from skimage import filters, io
-from skimage.segmentation import disk_level_set
+from skimage.segmentation import checkerboard_level_set
 
 from image_loader import CellImage
 from src.orderless_levelset import ol_loss, signed_distance_map
@@ -45,10 +45,9 @@ def main(cfg: DictConfig):
         logging.info(f"{levelset_center=}, {levelset_radius=}")
 
         levelset = signed_distance_map(
-            disk_level_set(
-                image.shape,
-                center=levelset_center,
-                radius=levelset_radius,
+            checkerboard_level_set(
+                image_shape=image.shape,
+                square_size=10,
             )
         )
 
@@ -66,7 +65,7 @@ def main(cfg: DictConfig):
                 "initial levelset": plot_3d(levelset[levelset_center[0], :, :]),
                 "smoothened image": plot_2d(image[levelset_center[0], :, :]),
             },
-            context={"context": "final", "x": f"{levelset_center[0]}"},
+            context={"context": "initial", "x": f"{levelset_center[0]}"},
         )
 
         logging.info("Finished initial tracking.")
@@ -104,12 +103,12 @@ def main(cfg: DictConfig):
         logging.info("Preparing plots")
         levelset = res.x.reshape(image.shape)
         del res
-        logging.info(f"{np.count(np.abs(levelset) < cfg.ol.epsilon)=}")
+        logging.info(f"{np.count_nonzero(np.abs(levelset) < cfg.ol.epsilon)=}")
         io.imsave(Path.cwd() / "levelset.tif", levelset)
 
         # segmentation
         img_segmentation = np.zeros(levelset.shape)
-        img_segmentation[img_segmentation > 0] = 1
+        img_segmentation[levelset > 0] = 1
         io.imsave(Path.cwd() / "segmentation.tif", img_segmentation)
 
         # track stats
