@@ -1,7 +1,6 @@
 # custom
 .cert
 data
-notebooks
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -82,6 +81,7 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+*.ipynb
 
 # IPython
 profile_default/
