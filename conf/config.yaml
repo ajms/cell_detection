@@ -1,4 +1,4 @@
-experiment: orderless_levelset
+experiment: edge preserving smoothing
 ol:
   epsilon: 1e-2
   mu: 1e-5

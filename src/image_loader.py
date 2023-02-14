@@ -108,10 +108,11 @@ class CellImage:
         unsharp_mask: dict = {"radius": 0, "amount": 0},
         regenerate: bool = False,
         show: bool = False,
-    ) -> np.ndarray:
+        return_path: bool = False,
+    ) -> np.ndarray | Path:
         path_to_slice = (
             self.path.parent
-            / f"{self.path.stem}_eq_{x}_{y}_{z}_lower_{lower_bound}_unsharp_{unsharp_mask['radius']}_{unsharp_mask['amount']}.tif"
+            / f"{self.path.stem}_eq_{equalize}_{x}_{y}_{z}_lower_{lower_bound}_unsharp_{unsharp_mask['radius']}_{unsharp_mask['amount']}.tif"
         )
         if path_to_slice.exists() and not regenerate:
             logging.info(f"Reading slice from harddisk: {path_to_slice}")
@@ -139,7 +140,8 @@ class CellImage:
             if show:
                 io.imshow(imslice)
                 plt.show()
-
+        if return_path:
+            return path_to_slice
         return imslice
 
     def show_3d(self, image: np.ndarray | None = None):
