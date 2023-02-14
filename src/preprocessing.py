@@ -23,33 +23,38 @@ def main(cfg: DictConfig):
         path_to_file = get_project_root() / "data" / cfg.image.path
         ci = CellImage(path=path_to_file)
 
-        imslice = ci.get_slice(
-            x=cfg.image.slice.x[0],
+        ci.read_image(
             equalize=cfg.image.equalize,
             lower_bound=cfg.image.lower_bound,
             unsharp_mask=cfg.image.unsharp_mask,
             regenerate=cfg.image.regenerate,
-            return_path=False,
         )
+        image = ci.image[
+            cfg.image.slice.x[0] : cfg.image.slice.x[1],
+            cfg.image.slice.y[0] : cfg.image.slice.y[1],
+            cfg.image.slice.z[0] : cfg.image.slice.z[1],
+        ]
 
-        imslice_cv = (imslice * 255).astype(np.uint8)
+        del ci
 
-        imslice_colour = cv.cvtColor(imslice_cv, cv.COLOR_GRAY2RGB)
+        image_center = np.array(image.shape) // 2
+
+        image = (image * 255).astype(np.uint8)
+
         aim_run.track(
             {
-                "image": plot_2d(imslice),
+                "image": plot_2d(image[:, image_center[1], :]),
             },
         )
-        logging.info(f"{type(imslice_colour)=}, {imslice_colour.shape=}")
-        assert imslice_colour.shape[2] == 3, print(f"{imslice_colour.shape=}")
-        l0 = cv.ximgproc.l0Smooth(imslice_colour)
-        ad = cv.ximgproc.anisotropicDiffusion(
-            imslice_colour, alpha=0.1, K=25.5, niters=10
-        )
+        logging.info(f"{type(image)=}, {image.shape=}")
+        l0 = np.zeros(list(image.shape))
+        for idx, slice in enumerate(image):
+            logging.info(f"[{idx}] {slice.shape=}")
+            l0[idx] = cv.ximgproc.l0Smooth(slice)
+
         aim_run.track(
             {
-                "AD": plot_2d(ad),
-                "L0": plot_2d(l0),
+                "L0": plot_2d(l0[:, image_center[1], :]),
             },
         )
         plt.close()
