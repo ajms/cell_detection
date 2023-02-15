@@ -193,31 +193,35 @@ if __name__ == "__main__":
     path_to_file = get_project_root() / "data/cell-detection/raw/cropped_first_third.h5"
     ci = CellImage(path=path_to_file)
     repo = get_project_root() / "data/cell-detection/aim"
-    experiment = "test"
+    experiment = "edge preserving smoothing"
     lower_bound = 0
     unsharp_mask = {"radius": 80, "amount": 2}
-    l0_smoothing = {"lambda_": 0.02, "kappa": 2.0}
     aim_run = aim.Run(
         repo=str(repo),
         experiment=experiment,
     )
+
     aim_run["metadata"] = {"type": experiment}
-    imslice = ci.get_slice(
-        x=356,
-        equalize="local",
-        lower_bound=lower_bound,
-        unsharp_mask=unsharp_mask,
-        l0_smoothing=l0_smoothing,
-        regenerate=False,
-    )
-    aim_run.track(
-        plot_2d(imslice),
-        experiment,
-        context={
-            "lower_bound": lower_bound,
-            "l0_smoothing": l0_smoothing,
-            "unsharp_mask": unsharp_mask,
-        },
-    )
-    aim_run.close()
+    lambda_ = 0.01
+
+    for kappa in [1.5, 2.5, 3]:
+        l0_smoothing = {"lambda_": lambda_, "kappa": kappa}
+
+        imslice = ci.get_slice(
+            x=356,
+            equalize="local",
+            lower_bound=lower_bound,
+            unsharp_mask=unsharp_mask,
+            l0_smoothing=l0_smoothing,
+            regenerate=False,
+        )
+        aim_run.track(
+            {"L0": plot_2d(imslice)},
+            context={
+                "lower_bound": lower_bound,
+                "l0_smoothing": l0_smoothing,
+                "unsharp_mask": unsharp_mask,
+            },
+        )
+        aim_run.close()
     # ci.show_3d()
