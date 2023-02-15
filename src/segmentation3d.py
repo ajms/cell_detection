@@ -31,6 +31,7 @@ def main(cfg: DictConfig):
             lower_bound=cfg.image.lower_bound,
             unsharp_mask=cfg.image.unsharp_mask,
             regenerate=cfg.image.regenerate,
+            l0_smoothing=cfg.image.l0_smoothing,
         )
         image = ci.image[
             cfg.image.slice.x[0] : cfg.image.slice.x[1],
