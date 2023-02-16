@@ -10,8 +10,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
+from src.l0_region_smoothing import reconstruct_image
 from src.utils.storage import get_project_root
-from src.visualization import plot_3d
+from src.visualization import plot_2d, plot_3d
 
 
 @contextmanager
@@ -68,6 +69,45 @@ def _git_branch() -> str:
     cmd = "git rev-parse --abbrev-ref HEAD"
     branch = subprocess.check_output(cmd.split(" ")).decode("utf-8")
     return branch
+
+
+class L0Callback:
+    def __init__(
+        self,
+        aim_run: aim.Run,
+        cfg: OmegaConf,
+        shape: tuple[int],
+    ):
+        self.aim_run = aim_run
+        self.cfg = cfg
+        self.shape = shape
+        self.M = np.product(shape)
+
+    def l0_callback(
+        self,
+        iter: int | None = None,
+        beta: float | None = None,
+        n_keys: int | None = None,
+        N: None | dict[int, set] = None,
+        G: None | dict[int, list] = None,
+        Y: None | dict[int, np.float16] = None,
+    ):
+        logging.info(
+            f"In the callback: {self.M=}, {self.shape=}, {iter=}, {beta=}, {len(n_keys)=}"
+        )
+        image = reconstruct_image(self.M, self.shape, N, G, Y)
+        logging.info(f"{image.shape}")
+        self.aim_run.track(
+            {
+                "beta": beta,
+                "n_keys": len(n_keys),
+                "image": plot_2d(image),
+            },
+            step=iter,
+            context={"context": "step"},
+        )
+        logging.info("Tracking complete")
+        plt.close()
 
 
 class ScipyCallback:

@@ -1,6 +1,10 @@
+import logging
+from typing import Callable
+
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.sparse as sp
+from tqdm import tqdm
 
 from src.image_loader import CellImage
 from src.utils.storage import get_project_root
@@ -63,13 +67,31 @@ def create_cij(shape: tuple[int]) -> tuple[sp.coo_array, dict[int, tuple[int]]]:
     row = [elt for nested in row for elt in nested]
     assert len(col) == len(row), f"{len(col)=}, {len(row)=}"
     data = np.ones(len(row), dtype=np.uint8)
-    return sp.csc_array((data, (row, col)), shape=(M, M), dtype=np.uint8), {
+    return sp.coo_array((data, (row, col)), shape=(M, M), dtype=np.uint32).tolil(), {
         i: set(nb) for i, nb in zipped
     }
 
 
+def reconstruct_image(
+    M: int,
+    shape: tuple[int],
+    N: dict[int, set],
+    G: dict[int, list],
+    Y: dict[int, np.float16],
+) -> np.ndarray:
+    S = np.zeros((M,))
+    for i in N.keys():
+        for j in G[i]:
+            S[j] = Y[i]
+    return S.reshape(shape)
+
+
 def l0_region_smoothing(
-    image: np.ndarray, lambda_: float = 0.4, K: int = 50, gamma: float = 2.2
+    image: np.ndarray,
+    lambda_: float = 0.01,
+    K: int = 20,
+    gamma: float = 2.2,
+    callback: None | Callable = None,
 ):
     M = np.product(image.shape)
     Y = {i: Ii for i, Ii in enumerate(image.flatten())}
@@ -78,63 +100,58 @@ def l0_region_smoothing(
     c, N = create_cij(image.shape)
     beta = 0
     iter = 0
-    P = M.copy()
     i = 0
     while beta < lambda_:
-        print(f"{iter=}")
-        while i < P:
-            for j in neighbour(
-                shape=image.shape,
-                index=np.unravel_index(i, shape=image.shape),
-                flat=True,
-            ):
+        n_keys = list(N.keys())
+        print(f"{iter=}, {beta=}, {len(n_keys)=}")
+        for i in tqdm(n_keys):
+            for j in N.get(i, []):
                 lhs = w[i] * w[j] * (Y[i] - Y[j]) ** 2
-                rhs = beta * c[i, j] * (w[i] * w[j])
+                rhs = beta * c[i, j] * (w[i] + w[j])
                 if lhs <= rhs:
-                    G[i] = G[i].append(j)
+                    G[i].append(j)
                     Y[i] = (w[i] * Y[i] + w[j] * Y[j]) / (w[i] + w[j])
                     w[i] = w[i] + w[j]
                     c[i, j] = 0
-                    N[i] = N[i].difference(j)
-                    for k in N[j].difference(i):
+                    N[i] = N[i].difference({j})
+                    for k in N[j].difference({i}):
                         if k in N[i]:
                             c[i, k] = c[i, k] + c[j, k]
                             c[k, i] = c[i, k] + c[j, k]
                         else:
-                            N[i] = N[i].add(k)
-                            N[k] = N[k].add(i)
+                            N[i].add(k)
+                            N[k].add(i)
                             c[i, k] = c[j, k]
                             c[k, i] = c[k, j]
-                        N[k] = N[k].difference(j)
+                        N[k] = N[k].difference({j})
                         c[k, j] = 0
                     G.pop(j), N.pop(j), w.pop(j)
-                    P -= 1
-                    i += 1
-                    # TODO: increase i every iteration
+        if callback:
+            callback(
+                **{"iter": iter, "beta": beta, "n_keys": n_keys, "N": N, "Y": Y, "G": G}
+            )
         iter += 1
         beta = (iter / K) ** gamma * lambda_
 
-    S = np.zeros((M,))
-    for i in range(0, P, 1):
-        for j, val in G.items():
-            S[j] = Y[i]
-    return S.reshape(image.shape)
+        logging.info(f"Stopped at {beta=} with {len(N.keys())=}")
+
+        return reconstruct_image(M, image.shape, N, G, Y)
 
 
 if __name__ == "__main__":
-    slc = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]])
-    arr = np.array([slc * 10, slc * 100, slc * 1_000, slc * 10_000])
-    neighbour_idx = neighbour(arr.shape, (2, 2, 2))
-    print(f"{neighbour_idx=}")
-    neighbour_idx2 = neighbour(arr.shape[:2], (2, 2))
-    print(f"{neighbour_idx2=}")
-    neightbour_flattend = np.ravel_multi_index(
-        tuple(zip(*neighbour_idx)), dims=arr.shape
-    )
-    print(f"{neightbour_flattend=}")
+    # slc = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]])
+    # arr = np.array([slc * 10, slc * 100, slc * 1_000, slc * 10_000])
+    # neighbour_idx = neighbour(arr.shape, (2, 2, 2))
+    # print(f"{neighbour_idx=}")
+    # neighbour_idx2 = neighbour(arr.shape[:2], (2, 2))
+    # print(f"{neighbour_idx2=}")
+    # neightbour_flattend = np.ravel_multi_index(
+    #     tuple(zip(*neighbour_idx)), dims=arr.shape
+    # )
+    # print(f"{neightbour_flattend=}")
 
-    c, N = create_cij((4, 4, 4))
-    print(f"{c=}, {N=}")
+    # c, N = create_cij((4, 4, 4))
+    # print(f"{c=}, {N=}")
 
     path_to_file = get_project_root() / "data/cell-detection/raw/cropped_first_third.h5"
     ci = CellImage(path=path_to_file)
@@ -147,6 +164,8 @@ if __name__ == "__main__":
         regenerate=False,
     )
 
+    imslice = imslice.astype(np.float16)
+    # c, N = create_cij(imslice.shape)
     smooth = l0_region_smoothing(imslice)
     plt.imshow(smooth)
 

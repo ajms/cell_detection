@@ -1,0 +1,33 @@
+experiment: preprocessing
+image:
+  path: cell-detection/raw/cropped_first_third.h5
+  equalize: local
+  regenerate: False
+  unsharp_mask:
+    amount: 2
+    radius: 80
+  l0_smoothing: None
+  l0_region:
+    lambda_: 0.01
+    K: 20
+    gamma: 2.2
+  lower_bound: 0
+  slice:
+    x:
+      - 360
+      - 370
+    y:
+      - 50
+      - -50
+    z:
+      - 50
+      - -50
+
+hydra:
+  job:
+    chdir: True
+  run:
+    dir: ./data/cell-detection/exp/${now:%Y-%m-%d_%H:%M:%S}
+  sweep:
+    dir: ./data/cell-detection/exp/${now:%Y-%m-%d_%H:%M:%S}
+    subdir: ${hydra.job.num}
