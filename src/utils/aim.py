@@ -12,7 +12,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from src.l0_region_smoothing import reconstruct_image
 from src.utils.storage import get_project_root
-from src.visualization import plot_2d, plot_3d
+from src.visualization import plot_2d, plot_3d, plot_histogram
 
 
 @contextmanager
@@ -92,21 +92,23 @@ class L0Callback:
         G: None | dict[int, list] = None,
         Y: None | dict[int, np.float16] = None,
     ):
-        logging.info(
+        logging.debug(
             f"In the callback: {self.M=}, {self.shape=}, {iter=}, {beta=}, {len(n_keys)=}"
         )
         image = reconstruct_image(self.M, self.shape, N, G, Y)
-        logging.info(f"{image.shape}")
+        histogram, bin_edges = np.histogram(image, bins=256, range=(0, 1))
+        logging.debug(f"{image.shape}")
         self.aim_run.track(
             {
                 "beta": beta,
                 "n_keys": len(n_keys),
                 "image": plot_2d(image),
+                "histogram": plot_histogram(image),
             },
             step=iter,
             context={"context": "step"},
         )
-        logging.info("Tracking complete")
+        logging.debug("Tracking complete")
         plt.close()
 
 

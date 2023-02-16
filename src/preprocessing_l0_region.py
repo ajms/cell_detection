@@ -9,7 +9,7 @@ from src.image_loader import CellImage
 from src.l0_region_smoothing import l0_region_smoothing
 from src.utils.aim import L0Callback, experiment_context
 from src.utils.storage import get_project_root
-from src.visualization import plot_2d
+from src.visualization import plot_2d, plot_histogram
 
 logging.basicConfig(
     format="%(levelname)s [%(asctime)s]: %(message)s", level=logging.INFO
@@ -34,6 +34,7 @@ def main(cfg: DictConfig):
         aim_run.track(
             {
                 "image": plot_2d(imslice),
+                "histogram": plot_histogram(imslice),
             },
             context={"context": "initial"},
         )

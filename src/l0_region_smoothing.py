@@ -98,7 +98,7 @@ def l0_region_smoothing(
     G = {i: [i] for i in np.arange(M)}
     w = {i: 1 for i in np.arange(M)}
     c, N = create_cij(image.shape)
-    beta = 0
+    beta = 0.0
     iter = 0
     i = 0
     while beta < lambda_:
@@ -133,9 +133,8 @@ def l0_region_smoothing(
         iter += 1
         beta = (iter / K) ** gamma * lambda_
 
-        logging.info(f"Stopped at {beta=} with {len(N.keys())=}")
-
-        return reconstruct_image(M, image.shape, N, G, Y)
+    logging.info(f"Stopped at {beta=} with {len(N.keys())=}")
+    return reconstruct_image(M, image.shape, N, G, Y)
 
 
 if __name__ == "__main__":
