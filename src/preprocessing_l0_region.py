@@ -23,16 +23,18 @@ def main(cfg: DictConfig):
         path_to_file = get_project_root() / "data" / cfg.image.path
         ci = CellImage(path=path_to_file)
 
-        imslice = (
-            ci.get_slice(
-                x=cfg.image.slice.x[0],
-                equalize=cfg.image.equalize,
-                lower_bound=cfg.image.lower_bound,
-                unsharp_mask=cfg.image.unsharp_mask,
-                regenerate=cfg.image.regenerate,
-            )
-            / 65536
-        ).astype(np.float16)
+        imslice = ci.get_slice(
+            x=cfg.image.slice.x[0],
+            equalize=cfg.image.equalize,
+            lower_bound=cfg.image.lower_bound,
+            unsharp_mask=cfg.image.unsharp_mask,
+            regenerate=cfg.image.regenerate,
+        )
+
+        quantile = np.quantile(imslice, cfg.image.lower_bound_quantile)
+        imslice[imslice < quantile] = quantile
+
+        imslice = ci._normalize(imslice)
 
         aim_run.track(
             {
@@ -47,9 +49,13 @@ def main(cfg: DictConfig):
             imslice, **cfg.image.l0_region, callback=lcallback.l0_callback
         )
 
+        unsharp_mask = ci.equalize_local(
+            smooth, lower_bound=0, unsharp_mask={"radius": 80, "amount": 2}
+        )
         aim_run.track(
             {
                 "L0": plot_2d(smooth),
+                "L0 + unsharp": plot_2d(unsharp_mask),
             },
             context={"context": "final"},
         )

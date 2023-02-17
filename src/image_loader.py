@@ -2,7 +2,6 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import aim
 import cv2
 import h5py
 import napari
@@ -10,7 +9,6 @@ import numpy as np
 from skimage import exposure, filters, io, morphology
 
 from src.utils.storage import get_project_root
-from src.visualization import plot_2d
 
 logging.basicConfig(
     format="%(levelname)s [%(asctime)s]: %(message)s", level=logging.INFO
@@ -85,7 +83,7 @@ class CellImage:
     def equalize_local(
         self, image: np.ndarray, lower_bound: float, unsharp_mask: dict
     ) -> np.ndarray:
-        logging.info(f"equalizing locally: {np.min(self.image)=},{np.max(self.image)=}")
+        logging.info(f"equalizing locally: {np.min(image)=},{np.max(image)=}")
         if lower_bound >= 1:
             image[image < lower_bound] = lower_bound
             logging.info(f"{np.average(image)=} before unsharp mask")
@@ -193,35 +191,8 @@ if __name__ == "__main__":
     path_to_file = get_project_root() / "data/cell-detection/raw/cropped_first_third.h5"
     ci = CellImage(path=path_to_file)
     repo = get_project_root() / "data/cell-detection/aim"
-    experiment = "edge preserving smoothing"
-    lower_bound = 0
-    unsharp_mask = {"radius": 80, "amount": 2}
-    aim_run = aim.Run(
-        repo=str(repo),
-        experiment=experiment,
+    imslice = ci.get_slice(
+        x=356,
+        equalize=None,
+        regenerate=False,
     )
-
-    aim_run["metadata"] = {"type": experiment}
-    lambda_ = 0.01
-
-    for kappa in [1.5, 2.5, 3]:
-        l0_smoothing = {"lambda_": lambda_, "kappa": kappa}
-
-        imslice = ci.get_slice(
-            x=356,
-            equalize="local",
-            lower_bound=lower_bound,
-            unsharp_mask=unsharp_mask,
-            l0_smoothing=l0_smoothing,
-            regenerate=False,
-        )
-        aim_run.track(
-            {"L0": plot_2d(imslice)},
-            context={
-                "lower_bound": lower_bound,
-                "l0_smoothing": l0_smoothing,
-                "unsharp_mask": unsharp_mask,
-            },
-        )
-        aim_run.close()
-    # ci.show_3d()

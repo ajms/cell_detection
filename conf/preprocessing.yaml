@@ -1,17 +1,18 @@
 experiment: preprocessing
 image:
   path: cell-detection/raw/cropped_first_third.h5
-  equalize: local
+  equalize: None
   regenerate: False
   unsharp_mask:
     amount: 2
     radius: 80
   l0_smoothing: None
   l0_region:
-    lambda_: 0.1
-    K: 50
+    lambda_: 5e-3
+    K: 10
     gamma: 2.2
   lower_bound: 0
+  lower_bound_quantile: 1e-2
   slice:
     x:
       - 360

@@ -47,9 +47,9 @@ def plot_3d(
     return aim_image
 
 
-def plot_histogram(image: np.ndarray):
+def plot_histogram(image: np.ndarray, bins: int = 256):
     # create the histogram
-    histogram, bin_edges = np.histogram(image, bins=256, range=(0, 1))
+    counts, bins = np.histogram(image, bins=bins, range=(0, 1))
     # configure and draw the histogram figure
     fig = plt.figure()
     plt.title("Grayscale Histogram")
@@ -57,7 +57,20 @@ def plot_histogram(image: np.ndarray):
     plt.ylabel("pixel count")
     plt.xlim([0.0, 1.0])  # <- named arguments do not work here
 
-    plt.plot(bin_edges[0:-1], histogram)  # <- or here
+    plt.stairs(counts, bins)  # <- or here
+    aim_image = aim.Image(fig)
+    plt.close()
+    return aim_image
+
+
+def plot_quantiles(image: np.ndarray):
+    xs = np.arange(0, 1, 0.01)
+    ys = [np.quantile(image, x) for x in xs]
+    fig = plt.figure()
+    plt.title("Grayscale quantiles")
+    plt.xlabel("grayscale value")
+    plt.ylabel("mass")
+    plt.plot(xs, ys)
     aim_image = aim.Image(fig)
     plt.close()
     return aim_image

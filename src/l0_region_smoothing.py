@@ -173,7 +173,6 @@ if __name__ == "__main__":
     )
 
     imslice = imslice.astype(np.float16)
-    # c, N = create_cij(imslice.shape)
     smooth = l0_region_smoothing(imslice)
     plt.imshow(smooth)
 

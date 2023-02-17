@@ -12,7 +12,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from src.l0_region_smoothing import reconstruct_image
 from src.utils.storage import get_project_root
-from src.visualization import plot_2d, plot_3d, plot_histogram
+from src.visualization import plot_2d, plot_3d, plot_histogram, plot_quantiles
 
 
 @contextmanager
@@ -98,17 +98,19 @@ class L0Callback:
         )
         image = reconstruct_image(self.M, self.shape, N, G, Y)
         max_G = max(map(len, G.values()))
+        P = len(N)
         logging.debug(f"{image.shape}")
         self.aim_run.track(
             {
                 "beta": beta,
                 "n_keys": len(n_keys),
-                "P": len(N),
+                "P": P,
                 "number of groups": len(G),
                 "biggest group": max_G,
                 "max weight": max(w.values()),
                 "image": plot_2d(image),
-                "histogram": plot_histogram(image),
+                "histogram": plot_histogram(image, bins=min(P, 256)),
+                "quantiles": plot_quantiles(image),
             },
             step=iter,
             context={"context": "step"},
