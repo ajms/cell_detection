@@ -23,12 +23,15 @@ def main(cfg: DictConfig):
         path_to_file = get_project_root() / "data" / cfg.image.path
         ci = CellImage(path=path_to_file)
 
-        imslice = ci.get_slice(
-            x=cfg.image.slice.x[0],
-            equalize=cfg.image.equalize,
-            lower_bound=cfg.image.lower_bound,
-            unsharp_mask=cfg.image.unsharp_mask,
-            regenerate=cfg.image.regenerate,
+        imslice = (
+            ci.get_slice(
+                x=cfg.image.slice.x[0],
+                equalize=cfg.image.equalize,
+                lower_bound=cfg.image.lower_bound,
+                unsharp_mask=cfg.image.unsharp_mask,
+                regenerate=cfg.image.regenerate,
+            )
+            / 65536
         ).astype(np.float16)
 
         aim_run.track(

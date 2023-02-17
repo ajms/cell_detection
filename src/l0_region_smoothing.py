@@ -103,13 +103,25 @@ def l0_region_smoothing(
     i = 0
     while beta < lambda_:
         n_keys = list(N.keys())
+        if callback:
+            callback(
+                **{
+                    "iter": iter,
+                    "beta": beta,
+                    "n_keys": n_keys,
+                    "N": N,
+                    "Y": Y,
+                    "G": G,
+                    "w": w,
+                }
+            )
         print(f"{iter=}, {beta=}, {len(n_keys)=}")
         for i in tqdm(n_keys):
             for j in N.get(i, []):
                 lhs = w[i] * w[j] * (Y[i] - Y[j]) ** 2
                 rhs = beta * c[i, j] * (w[i] + w[j])
                 if lhs <= rhs:
-                    G[i].append(j)
+                    G[i] += G[j]
                     Y[i] = (w[i] * Y[i] + w[j] * Y[j]) / (w[i] + w[j])
                     w[i] = w[i] + w[j]
                     c[i, j] = 0
@@ -126,10 +138,7 @@ def l0_region_smoothing(
                         N[k] = N[k].difference({j})
                         c[k, j] = 0
                     G.pop(j), N.pop(j), w.pop(j)
-        if callback:
-            callback(
-                **{"iter": iter, "beta": beta, "n_keys": n_keys, "N": N, "Y": Y, "G": G}
-            )
+
         iter += 1
         beta = (iter / K) ** gamma * lambda_
 

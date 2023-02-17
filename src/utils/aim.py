@@ -91,17 +91,22 @@ class L0Callback:
         N: None | dict[int, set] = None,
         G: None | dict[int, list] = None,
         Y: None | dict[int, np.float16] = None,
+        w: None | dict[int, int] = None,
     ):
         logging.debug(
             f"In the callback: {self.M=}, {self.shape=}, {iter=}, {beta=}, {len(n_keys)=}"
         )
         image = reconstruct_image(self.M, self.shape, N, G, Y)
-        histogram, bin_edges = np.histogram(image, bins=256, range=(0, 1))
+        max_G = max(map(len, G.values()))
         logging.debug(f"{image.shape}")
         self.aim_run.track(
             {
                 "beta": beta,
                 "n_keys": len(n_keys),
+                "P": len(N),
+                "number of groups": len(G),
+                "biggest group": max_G,
+                "max weight": max(w.values()),
                 "image": plot_2d(image),
                 "histogram": plot_histogram(image),
             },
