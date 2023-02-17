@@ -10,7 +10,19 @@ from src.image_loader import CellImage
 from src.utils.storage import get_project_root
 
 
-def neighbour(shape: tuple[int], index: tuple[int], flat: bool = False) -> slice:
+def neighbour(
+    shape: tuple[int], index: tuple[int], flat: bool = False
+) -> list[tuple[int]]:
+    """Find neighbours of index in image, works for 1, 2 and 3d shapes
+
+    Args:
+        shape (tuple[int]): image shape
+        index (tuple[int]): index of which to determine neighbours
+        flat (bool, optional): return the flattened index, C-order. Defaults to False.
+
+    Returns:
+        list[tuple[int]]: list of neighbours
+    """
     adder = [1, -1]
 
     match len(shape):
@@ -52,7 +64,18 @@ def neighbour(shape: tuple[int], index: tuple[int], flat: bool = False) -> slice
         return neighbours
 
 
-def create_cij(shape: tuple[int]) -> tuple[sp.coo_array, dict[int, tuple[int]]]:
+def create_c_N(shape: tuple[int]) -> tuple[sp.coo_array, dict[int, tuple[int]]]:
+    """Initialize sparse matrix of neighbour relations and dictionary of neighbours for each index.
+
+    Args:
+        shape (tuple[int]): image shape
+
+    Returns:
+        tuple[sp.coo_array, dict[int, tuple[int]]]:
+            returns a MxM-matrix, where M is the product of the shape which is 1, if i and j are neighbours and
+            a dictionary containing all neighbour indices for each index.
+
+    """
     M = np.product(shape)
     zipped = [
         (
@@ -79,6 +102,18 @@ def reconstruct_image(
     G: dict[int, list],
     Y: dict[int, np.float16],
 ) -> np.ndarray:
+    """Reconstruct the image from the groups from the l0-region-smoothing
+
+    Args:
+        M (int): length of flattened image
+        shape (tuple[int]): shape of image
+        N (dict[int, set]): dictionary of neighbours
+        G (dict[int, list]): dictionary of groups
+        Y (dict[int, np.float16]): dictionary of group intensities
+
+    Returns:
+        np.ndarray: reconstructed image
+    """
     S = np.zeros((M,))
     for i in N.keys():
         for j in G[i]:
@@ -92,12 +127,24 @@ def l0_region_smoothing(
     K: int = 20,
     gamma: float = 2.2,
     callback: None | Callable = None,
-):
+) -> np.ndarray:
+    """L0 region smoothing adapted from paper Fast and Effective L0 Gradient Minimization by Region Fusion by Nguyen et al.
+
+    Args:
+        image (np.ndarray): input image
+        lambda_ (float, optional): level of sparseness. Defaults to 0.01.
+        K (int, optional): number of iterations. Defaults to 20.
+        gamma (float, optional): power for convergence criterion, if gamma = 1 then linear, else nonlinear. Defaults to 2.2.
+        callback (None | Callable, optional): callback function for collecting metrics: iter, beta, n_keys, N, Y, G and w. Defaults to None.
+
+    Returns:
+        np.ndarray: return image with smoothened regions
+    """
     M = np.product(image.shape)
     Y = {i: Ii for i, Ii in enumerate(image.flatten())}
     G = {i: [i] for i in np.arange(M)}
     w = {i: 1 for i in np.arange(M)}
-    c, N = create_cij(image.shape)
+    c, N = create_c_N(image.shape)
     beta = 0.0
     iter = 0
     i = 0

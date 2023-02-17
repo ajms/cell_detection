@@ -12,7 +12,24 @@ def ol_loss(
     mu: float = 0,
     nu: float = 0,
     epsilon: float = 0.01,
-):
+) -> tuple[float, np.ndarray]:
+    """This is an orderless loss function for segmentation, parameters are inspired by Chan Vese
+
+    Args:
+        levelset (np.ndarray): initial levelset array
+        image (np.ndarray): image
+        lambda1 (float, optional): parameter to weight the positive levelset. Defaults to 1.
+        lambda2 (float, optional): parameter to weight the negative levelset. Defaults to 1.
+        mu (float, optional): parameter to control the positive levelsets area. Defaults to 0.
+        nu (float, optional): parameter to control the boundary length. Defaults to 0.
+        epsilon (float, optional): tolerance for the 0 levelset "boundary". Defaults to 0.01.
+
+    Returns:
+        tuple of np.ndarray: t
+
+    Returns:
+        tuple[float, np.ndarray]: loss and dloss, the gradient of the loss function
+    """
     if np.max(image) > 1:
         image = image.astype(np.float64)
         image = image / np.max(image)
@@ -79,6 +96,14 @@ def ol_loss(
 
 
 def signed_distance_map(binary_image: np.ndarray) -> np.ndarray:
+    """Create a signed distance map from a binary image.
+
+    Args:
+        binary_image (np.ndarray): binary image
+
+    Returns:
+        np.ndarray: signed distance map
+    """
     positive_image = ndimage.distance_transform_edt(binary_image)
     negative_image = ndimage.distance_transform_edt(np.abs(binary_image - 1))
     return (positive_image - negative_image) / np.max((positive_image, negative_image))
