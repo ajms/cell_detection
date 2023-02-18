@@ -12,7 +12,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from src.l0_region_smoothing import reconstruct_image
 from src.utils.storage import get_project_root
-from src.visualization import plot_2d, plot_3d, plot_histogram, plot_quantiles
+from src.visualization import plot_2d, plot_3d
 
 
 @contextmanager
@@ -100,7 +100,6 @@ class L0Callback:
         max_G = max(map(len, G.values()))
         P = len(N)
         logging.debug(f"{image.shape}")
-        imslice = image if len(self.shape) == 2 else image[self.shape[0] // 2]
         self.aim_run.track(
             {
                 "beta": beta,
@@ -109,9 +108,13 @@ class L0Callback:
                 "number of groups": len(G),
                 "biggest group": max_G,
                 "max weight": max(w.values()),
-                "image": plot_2d(imslice),
-                "histogram": plot_histogram(imslice, bins=min(P, 256)),
-                "quantiles": plot_quantiles(imslice),
+                "image": plot_2d(
+                    image if len(self.shape) == 2 else image[self.shape[0] // 2]
+                ),
+                "histogram": aim.Distribution(image.flatten()),
+                "quantiles": aim.Distribution(
+                    [np.quantile(image, x) for x in np.arange(0, 1, 1 / 64)]
+                ),
             },
             step=iter,
             context={"context": "step"},

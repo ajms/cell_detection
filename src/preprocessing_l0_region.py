@@ -1,15 +1,17 @@
 import logging
 
+import aim
 import hydra
 import matplotlib.pyplot as plt
 import numpy as np
 from omegaconf import DictConfig
+from skimage import io
 
 from src.image_loader import CellImage
 from src.l0_region_smoothing import l0_region_smoothing
 from src.utils.aim import L0Callback, experiment_context
 from src.utils.storage import get_project_root
-from src.visualization import plot_2d, plot_histogram
+from src.visualization import plot_2d
 
 logging.basicConfig(
     format="%(levelname)s [%(asctime)s]: %(message)s", level=logging.INFO
@@ -50,7 +52,7 @@ def main(cfg: DictConfig):
         aim_run.track(
             {
                 "image": plot_2d(ci.image[image_center[0]]),
-                "histogram": plot_histogram(ci.image[image_center[0]]),
+                "histogram": aim.Distribution(ci.image.flatten()),
             },
             context={"context": "initial"},
         )
@@ -71,6 +73,8 @@ def main(cfg: DictConfig):
             context={"context": "final"},
         )
         plt.close()
+
+        io.imsave("smooth_image.tif", ci.image)
 
         ci.show_3d()
 
