@@ -50,6 +50,7 @@ def neighbour(
             j_fixed = [(i + a, j) for a in adder if (0 <= i + a < shape[0])]
             neighbours = i_fixed + j_fixed
         case 1:
+            i = index
             neighbours = [(i - 1, i + 1)]
 
     if flat:

@@ -29,7 +29,7 @@ def main(cfg: DictConfig):
         imslice = ci.get_slice(
             x=cfg.image.slice.x,
             equalize=cfg.image.equalize,
-            lower_bound=cfg.image.lower_bound,
+            q_lower_bound=cfg.image.q_lower_bound,
             unsharp_mask=cfg.image.unsharp_mask,
             regenerate=cfg.image.regenerate,
         )  # disk_level_set((100, 100), center=(30, 30), radius=20)
