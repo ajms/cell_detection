@@ -12,7 +12,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from src.l0_region_smoothing import reconstruct_image
 from src.utils.storage import get_project_root
-from src.visualization import plot_2d, plot_3d
+from src.visualization import plot_2d, plot_3d, plot_quantiles
 
 
 @contextmanager
@@ -112,9 +112,7 @@ class L0Callback:
                     image if len(self.shape) == 2 else image[self.shape[0] // 2]
                 ),
                 "histogram": aim.Distribution(image.flatten()),
-                "quantiles": aim.Distribution(
-                    [np.quantile(image, x) for x in np.arange(0, 1, 1 / 64)]
-                ),
+                "quantiles": plot_quantiles(image=image),
             },
             step=iter,
             context={"context": "step"},

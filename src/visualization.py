@@ -71,6 +71,6 @@ def plot_quantiles(image: np.ndarray):
     plt.xlabel("grayscale value")
     plt.ylabel("mass")
     plt.plot(xs, ys)
-    aim_image = aim.Image(fig)
+    aim_figure = aim.Figure(fig)
     plt.close()
-    return aim_image
+    return aim_figure
