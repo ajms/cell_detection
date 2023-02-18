@@ -23,30 +23,41 @@ def main(cfg: DictConfig):
         path_to_file = get_project_root() / "data" / cfg.image.path
         ci = CellImage(path=path_to_file)
 
-        imslice = ci.get_slice(
-            x=cfg.image.slice.x[0],
+        # uncomment for slice instead of 3d image
+        # image = ci.get_slice(
+        #     x=cfg.image.slice.x[0],
+        #     equalize=cfg.image.equalize,
+        #     lower_bound=cfg.image.lower_bound,
+        #     unsharp_mask=cfg.image.unsharp_mask,
+        #     regenerate=cfg.image.regenerate,
+        # )
+        ci.read_image(
             equalize=cfg.image.equalize,
-            lower_bound=cfg.image.lower_bound,
+            q_lower_bound=cfg.image.q_lower_bound,
             unsharp_mask=cfg.image.unsharp_mask,
             regenerate=cfg.image.regenerate,
         )
+        ci.image = ci.image[
+            cfg.image.slice.x[0] : cfg.image.slice.x[1],
+            cfg.image.slice.y[0] : cfg.image.slice.y[1],
+            cfg.image.slice.z[0] : cfg.image.slice.z[1],
+        ]
 
-        quantile = np.quantile(imslice, cfg.image.lower_bound_quantile)
-        imslice[imslice < quantile] = quantile
+        ci.image = ci._normalize(ci.image)
 
-        imslice = ci._normalize(imslice)
+        image_center = np.array(ci.image.shape) // 2
 
         aim_run.track(
             {
-                "image": plot_2d(imslice),
-                "histogram": plot_histogram(imslice),
+                "image": plot_2d(ci.image[image_center[0]]),
+                "histogram": plot_histogram(ci.image[image_center[0]]),
             },
             context={"context": "initial"},
         )
 
-        lcallback = L0Callback(aim_run=aim_run, cfg=cfg, shape=imslice.shape)
+        lcallback = L0Callback(aim_run=aim_run, cfg=cfg, shape=ci.image.shape)
         smooth = l0_region_smoothing(
-            imslice, **cfg.image.l0_region, callback=lcallback.l0_callback
+            ci.image, **cfg.image.l0_region, callback=lcallback.l0_callback
         )
 
         unsharp_mask = ci.equalize_local(
@@ -54,12 +65,14 @@ def main(cfg: DictConfig):
         )
         aim_run.track(
             {
-                "L0": plot_2d(smooth),
-                "L0 + unsharp": plot_2d(unsharp_mask),
+                "L0": plot_2d(smooth[:, image_center[1]]),
+                "L0 + unsharp": plot_2d(unsharp_mask[image_center]),
             },
             context={"context": "final"},
         )
         plt.close()
+
+        ci.show_3d()
 
 
 if __name__ == "__main__":

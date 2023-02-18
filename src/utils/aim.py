@@ -100,6 +100,7 @@ class L0Callback:
         max_G = max(map(len, G.values()))
         P = len(N)
         logging.debug(f"{image.shape}")
+        imslice = image if len(self.shape) == 2 else image[self.shape[0] // 2]
         self.aim_run.track(
             {
                 "beta": beta,
@@ -108,9 +109,9 @@ class L0Callback:
                 "number of groups": len(G),
                 "biggest group": max_G,
                 "max weight": max(w.values()),
-                "image": plot_2d(image),
-                "histogram": plot_histogram(image, bins=min(P, 256)),
-                "quantiles": plot_quantiles(image),
+                "image": plot_2d(imslice),
+                "histogram": plot_histogram(imslice, bins=min(P, 256)),
+                "quantiles": plot_quantiles(imslice),
             },
             step=iter,
             context={"context": "step"},

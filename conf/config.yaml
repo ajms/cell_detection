@@ -18,7 +18,7 @@ image:
   l0_smoothing:
     lambda_: 0.01
     kappa: 3.0
-  lower_bound: 0
+  q_lower_bound: 0
   slice:
     x:
       - 360

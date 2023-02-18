@@ -11,8 +11,7 @@ image:
     lambda_: 5e-3
     K: 10
     gamma: 2.2
-  lower_bound: 0
-  lower_bound_quantile: 1e-2
+  q_lower_bound: 1e-2
   slice:
     x:
       - 360
