@@ -7,8 +7,8 @@ import numpy as np
 from omegaconf import DictConfig
 from skimage import io
 
+from src.cython_implementations.l0_region_smoothing import l0_region_smoothing
 from src.image_loader import CellImage
-from src.l0_region_smoothing import l0_region_smoothing
 from src.utils.aim import L0Callback, experiment_context
 from src.utils.storage import get_project_root
 from src.visualization import plot_2d
@@ -63,7 +63,7 @@ def main(cfg: DictConfig):
         )
 
         unsharp_mask = ci.equalize_local(
-            smooth, lower_bound=0, unsharp_mask={"radius": 80, "amount": 2}
+            smooth, unsharp_mask={"radius": 80, "amount": 2}
         )
         aim_run.track(
             {
@@ -74,9 +74,9 @@ def main(cfg: DictConfig):
         )
         plt.close()
 
-        io.imsave("smooth_image.tif", ci.image)
+        io.imsave("smooth_image.tif", smooth)
 
-        ci.show_3d()
+        # ci.show_3d()
 
 
 if __name__ == "__main__":

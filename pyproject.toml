@@ -19,8 +19,9 @@ jupyter = "^1.0.0"
 pyqt5 = "^5.15.9"
 opencv-contrib-python-headless = "^4.7.0.68"
 tqdm = "^4.64.1"
-cython = "^0.29.33"
+cython = {version = "^3.0.0a11", allow-prereleases = true}
 setuptools = "^67.3.2"
+plotly = "^5.13.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.10.0"

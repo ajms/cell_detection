@@ -1,6 +1,7 @@
 import getpass
 import logging
 import subprocess
+import sys
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable
@@ -113,6 +114,10 @@ class L0Callback:
                 ),
                 "histogram": aim.Distribution(image.flatten()),
                 "quantiles": plot_quantiles(image=image),
+                "N memory": sys.getsizeof(N),
+                "G memory": sys.getsizeof(G),
+                "Y memory": sys.getsizeof(Y),
+                "w memory": sys.getsizeof(w),
             },
             step=iter,
             context={"context": "step"},

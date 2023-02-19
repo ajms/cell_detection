@@ -40,3 +40,7 @@ pre-commit:  ## run all pre-commit checks
 .PHONY: aim
 aim:  ## run aim UI
 	cd data/cell-detection/aim; aim up
+
+.PHONY: build
+build:  ## build cython
+	cd src/cython_implementations;	python setup.py build_ext --inplace

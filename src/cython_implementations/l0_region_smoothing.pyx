@@ -3,6 +3,11 @@ from typing import Callable
 
 import matplotlib.pyplot as plt
 import numpy as np
+
+cimport numpy as np
+
+np.import_array()
+import cython
 import scipy.sparse as sp
 from tqdm import tqdm
 
@@ -140,14 +145,16 @@ def l0_region_smoothing(
     Returns:
         np.ndarray: return image with smoothened regions
     """
-    M = np.product(image.shape)
-    Y = {i: Ii for i, Ii in enumerate(image.flatten())}
-    G = {i: [i] for i in np.arange(M)}
-    w = {i: 1 for i in np.arange(M)}
-    c, N = create_c_N(image.shape)
-    beta = 0.0
-    iter = 0
-    i = 0
+    M: cython.int = image.shape[0] * image.shape[1] * image.shape[2]
+    Y: cython.dict = {i: Ii for i, Ii in enumerate(image.flatten())}
+    G: cython.dict = {i: [i] for i in np.arange(M)}
+    w: cython.dict = {i: 1 for i in np.arange(M)}
+    c: sp.lil_array
+    N: cython.dict
+    c, N = create_c_N((image.shape[0], image.shape[1], image.shape[2]))
+    beta: cython.float = 0.0
+    iter: cython.int = 0
+    i: cython.int = 0
     while beta < lambda_:
         n_keys = list(N.keys())
         if callback:
@@ -163,7 +170,7 @@ def l0_region_smoothing(
                 }
             )
         print(f"{iter=}, {beta=}, {len(n_keys)=}")
-        for i in tqdm(n_keys):
+        for i in n_keys:
             for j in N.get(i, []):
                 lhs = w[i] * w[j] * (Y[i] - Y[j]) ** 2
                 rhs = beta * c[i, j] * (w[i] + w[j])
@@ -190,7 +197,7 @@ def l0_region_smoothing(
         beta = (iter / K) ** gamma * lambda_
 
     logging.info(f"Stopped at {beta=} with {len(N.keys())=}")
-    return reconstruct_image(M, image.shape, N, G, Y)
+    return reconstruct_image(M, (image.shape[0], image.shape[1], image.shape[2]), N, G, Y)
 
 
 if __name__ == "__main__":
