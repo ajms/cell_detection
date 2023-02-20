@@ -155,7 +155,7 @@ def l0_region_smoothing(
                 **{
                     "iter": iter,
                     "beta": beta,
-                    "n_keys": n_keys,
+                    "num_keys": len(n_keys),
                     "N": N,
                     "Y": Y,
                     "G": G,

@@ -88,27 +88,27 @@ class L0Callback:
         self,
         iter: int | None = None,
         beta: float | None = None,
-        n_keys: int | None = None,
+        num_keys: int | None = None,
         N: None | dict[int, set] = None,
         G: None | dict[int, list] = None,
         Y: None | dict[int, np.float16] = None,
         w: None | dict[int, int] = None,
     ):
         logging.debug(
-            f"In the callback: {self.M=}, {self.shape=}, {iter=}, {beta=}, {len(n_keys)=}"
+            f"In the callback: {self.M=}, {self.shape=}, {iter=}, {beta=}, {num_keys=}"
         )
         image = reconstruct_image(self.M, self.shape, N, G, Y)
-        max_G = max(map(len, G.values()))
+        max_G = max(map(len, G.data()))
         P = len(N)
         logging.debug(f"{image.shape}")
         self.aim_run.track(
             {
                 "beta": beta,
-                "n_keys": len(n_keys),
+                "n_keys": num_keys,
                 "P": P,
-                "number of groups": len(G),
+                "number of groups": G.rows.shape[0],
                 "biggest group": max_G,
-                "max weight": max(w.values()),
+                "max weight": w.max(),
                 "image": plot_2d(
                     image if len(self.shape) == 2 else image[self.shape[0] // 2]
                 ),

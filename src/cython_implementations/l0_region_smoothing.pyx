@@ -1,13 +1,15 @@
+# cython: infer_types=True
 import logging
 from typing import Callable
 
+import cython
 import matplotlib.pyplot as plt
 import numpy as np
 
 cimport numpy as np
 
 np.import_array()
-import cython
+
 import scipy.sparse as sp
 from tqdm import tqdm
 
@@ -69,7 +71,7 @@ def neighbour(
         return neighbours
 
 
-def create_c_N(shape: tuple[int]) -> tuple[sp.coo_array, dict[int, tuple[int]]]:
+def create_c_N(shape: tuple[int]) -> sp.lil_array:
     """Initialize sparse matrix of neighbour relations and dictionary of neighbours for each index.
 
     Args:
@@ -95,17 +97,15 @@ def create_c_N(shape: tuple[int]) -> tuple[sp.coo_array, dict[int, tuple[int]]]:
     row = [elt for nested in row for elt in nested]
     assert len(col) == len(row), f"{len(col)=}, {len(row)=}"
     data = np.ones(len(row), dtype=np.uint8)
-    return sp.coo_array((data, (row, col)), shape=(M, M), dtype=np.uint32).tolil(), {
-        i: set(nb) for i, nb in zipped
-    }
+    return sp.coo_array((data, (row, col)), shape=(M, M)).tolil()
 
 
 def reconstruct_image(
     M: int,
     shape: tuple[int],
-    N: dict[int, set],
-    G: dict[int, list],
-    Y: dict[int, np.float16],
+    c: sp.lil_array,
+    G: sp.lil_array,
+    Y: np.ndarray,
 ) -> np.ndarray:
     """Reconstruct the image from the groups from the l0-region-smoothing
 
@@ -120,8 +120,8 @@ def reconstruct_image(
         np.ndarray: reconstructed image
     """
     S = np.zeros((M,))
-    for i in N.keys():
-        for j in G[i]:
+    for i in range(M):
+        for j in G.rows[i]:
             S[j] = Y[i]
     return S.reshape(shape)
 
@@ -145,59 +145,66 @@ def l0_region_smoothing(
     Returns:
         np.ndarray: return image with smoothened regions
     """
-    M: cython.int = image.shape[0] * image.shape[1] * image.shape[2]
-    Y: cython.dict = {i: Ii for i, Ii in enumerate(image.flatten())}
-    G: cython.dict = {i: [i] for i in np.arange(M)}
-    w: cython.dict = {i: 1 for i in np.arange(M)}
-    c: sp.lil_array
-    N: cython.dict
-    c, N = create_c_N((image.shape[0], image.shape[1], image.shape[2]))
-    beta: cython.float = 0.0
+    M = np.product((image.shape[0], image.shape[1], image.shape[2]))
+    Y = image.flatten()
+    G = sp.coo_array((np.ones(M), (np.arange(0, M, 1), np.arange(0, M, 1)))).tolil()
+    w = np.ones(M)
+    c = create_c_N((image.shape[0], image.shape[1], image.shape[2]))
+    beta: cython.double = 0.0
     iter: cython.int = 0
-    i: cython.int = 0
-    while beta < lambda_:
-        n_keys = list(N.keys())
+    lambda_c: cython.double = lambda_
+    K_c: cython.int = K
+    gamma_c: cython.double = gamma
+    i: cython.Py_ssize_t
+    j: cython.Py_ssize_t
+    k: cython.Py_ssize_t
+
+    n_keys: cython.int = G.shape[0]
+
+    while beta < lambda_c:
         if callback:
             callback(
                 **{
                     "iter": iter,
                     "beta": beta,
-                    "n_keys": n_keys,
-                    "N": N,
+                    "num_keys": n_keys,
                     "Y": Y,
                     "G": G,
                     "w": w,
                 }
             )
-        print(f"{iter=}, {beta=}, {len(n_keys)=}")
-        for i in n_keys:
-            for j in N.get(i, []):
+        print(f"{iter=}, {beta=}, {n_keys=}")
+        for i in tqdm(range(n_keys)):
+            for j in c.rows[i]:
                 lhs = w[i] * w[j] * (Y[i] - Y[j]) ** 2
-                rhs = beta * c[i, j] * (w[i] + w[j])
+                rhs = beta * c[i,j] * (w[i] + w[j])
                 if lhs <= rhs:
-                    G[i] += G[j]
+                    logging.info(f"{G.rows[j]=}")
+                    num_elts: cython.int = len(G.rows[j])
+                    for l in range(num_elts):
+                        G[i,G.rows[j][l]] = G.data[j][l]
                     Y[i] = (w[i] * Y[i] + w[j] * Y[j]) / (w[i] + w[j])
                     w[i] = w[i] + w[j]
                     c[i, j] = 0
-                    N[i] = N[i].difference({j})
-                    for k in N[j].difference({i}):
-                        if k in N[i]:
-                            c[i, k] = c[i, k] + c[j, k]
-                            c[k, i] = c[i, k] + c[j, k]
+                    for k in c.rows[j]:
+                        if k == i:
+                            continue
+                        if k in c.rows[i]:
+                            c[i, k] += c[j, k]
+                            c[k,i] += c[j, k]
                         else:
-                            N[i].add(k)
-                            N[k].add(i)
                             c[i, k] = c[j, k]
                             c[k, i] = c[k, j]
-                        N[k] = N[k].difference({j})
                         c[k, j] = 0
-                    G.pop(j), N.pop(j), w.pop(j)
+                    G.data[j] = []
+                    G.rows[j] = []
+                    w[j] = 0
 
         iter += 1
-        beta = (iter / K) ** gamma * lambda_
+        beta = (iter / K_c) ** gamma_c * lambda_
 
-    logging.info(f"Stopped at {beta=} with {len(N.keys())=}")
-    return reconstruct_image(M, (image.shape[0], image.shape[1], image.shape[2]), N, G, Y)
+    logging.info(f"Stopped at {beta=}")
+    return reconstruct_image(M, (image.shape[0], image.shape[1], image.shape[2]), G, Y)
 
 
 if __name__ == "__main__":
@@ -220,13 +227,11 @@ if __name__ == "__main__":
 
     imslice = ci.get_slice(
         x=356,
-        equalize="local",
-        lower_bound=0,
-        unsharp_mask={"radius": 80, "amount": 2},
+        equalize=None,
         regenerate=False,
     )
 
-    imslice = imslice.astype(np.float16)
+    imslice = ci._normalize(image=imslice)
     smooth = l0_region_smoothing(imslice)
     plt.imshow(smooth)
 

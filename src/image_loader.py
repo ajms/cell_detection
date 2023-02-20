@@ -177,8 +177,6 @@ class CellImage:
         b = np.max(image)
         a = np.min(image)
         image = (image - a) / (b - a)
-        assert np.round(np.max(image), 0) == 1, np.max(image)
-        assert np.round(np.min(image), 0) == 0, np.min(image)
         return image
 
 

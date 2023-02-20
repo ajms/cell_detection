@@ -44,3 +44,8 @@ aim:  ## run aim UI
 .PHONY: build
 build:  ## build cython
 	cd src/cython_implementations;	python setup.py build_ext --inplace
+
+.PHONY: run-preprocessing
+run-preprocessing:  ## Run l0 region smoothing
+	make build
+	python src/preprocessing_l0_region.py
