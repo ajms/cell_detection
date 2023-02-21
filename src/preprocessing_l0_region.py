@@ -7,8 +7,8 @@ import numpy as np
 from omegaconf import DictConfig
 from skimage import io
 
-from src.cython_implementations.l0_region_smoothing import l0_region_smoothing
 from src.image_loader import CellImage
+from src.l0_region_smoothing import l0_region_smoothing
 from src.utils.aim import L0Callback, experiment_context
 from src.utils.storage import get_project_root
 from src.visualization import plot_2d
@@ -44,8 +44,6 @@ def main(cfg: DictConfig):
             cfg.image.slice.y[0] : cfg.image.slice.y[1],
             cfg.image.slice.z[0] : cfg.image.slice.z[1],
         ]
-
-        ci.image = ci._normalize(ci.image)
 
         image_center = np.array(ci.image.shape) // 2
 

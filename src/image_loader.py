@@ -58,8 +58,10 @@ class CellImage:
                 self.image = self.lower_bound(image=self.image, q=q_lower_bound)
             if equalize == "global":
                 self.image = self.equalize_histogram(self.image)
-            if equalize == "local":
+            elif equalize == "local":
                 self.image = self.equalize_local(self.image, unsharp_mask=unsharp_mask)
+            else:
+                self.image = self._normalize(image=self.image)
             if l0_smoothing:
                 self.image = (self.image * 255).astype(np.uint8)
                 l0 = np.zeros(list(self.image.shape))
@@ -114,6 +116,8 @@ class CellImage:
                 imslice = self.equalize_local(imslice, unsharp_mask=unsharp_mask)
             elif equalize == "global":
                 imslice = self.equalize_histogram(imslice)
+            else:
+                imslice = self._normalize(image=imslice)
 
             if l0_smoothing:
                 imslice = (imslice * 255).astype(np.uint8)
