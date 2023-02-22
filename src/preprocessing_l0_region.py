@@ -7,8 +7,8 @@ import numpy as np
 from omegaconf import DictConfig
 from skimage import io
 
+from src.cython_implementations.l0_region_smoothing import l0_region_smoothing
 from src.image_loader import CellImage
-from src.l0_region_smoothing import l0_region_smoothing
 from src.utils.aim import L0Callback, experiment_context
 from src.utils.storage import get_project_root
 from src.visualization import plot_2d
@@ -39,6 +39,7 @@ def main(cfg: DictConfig):
             unsharp_mask=cfg.image.unsharp_mask,
             regenerate=cfg.image.regenerate,
         )
+        logging.info("Slicing image")
         ci.image = ci.image[
             cfg.image.slice.x[0] : cfg.image.slice.x[1],
             cfg.image.slice.y[0] : cfg.image.slice.y[1],
@@ -47,6 +48,7 @@ def main(cfg: DictConfig):
 
         image_center = np.array(ci.image.shape) // 2
 
+        logging.info("Initial tracking")
         aim_run.track(
             {
                 "image": plot_2d(ci.image[image_center[0]]),
@@ -56,6 +58,7 @@ def main(cfg: DictConfig):
         )
 
         lcallback = L0Callback(aim_run=aim_run, cfg=cfg, shape=ci.image.shape)
+        logging.info("Starting region smoothing")
         smooth = l0_region_smoothing(
             ci.image, **cfg.image.l0_region, callback=lcallback.l0_callback
         )

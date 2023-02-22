@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
-from src.l0_region_smoothing import reconstruct_image
+from src.cython_implementations.l0_region_smoothing import reconstruct_image
 from src.utils.storage import get_project_root
 from src.visualization import plot_2d, plot_3d, plot_quantiles
 
@@ -82,7 +82,7 @@ class L0Callback:
         self.aim_run = aim_run
         self.cfg = cfg
         self.shape = shape
-        self.M = np.product(shape)
+        self.M = np.product(shape, dtype=np.int32).item()
 
     def l0_callback(
         self,
@@ -94,12 +94,15 @@ class L0Callback:
         Y: None | dict[int, np.float16] = None,
         w: None | dict[int, int] = None,
     ):
-        logging.debug(
+        logging.info(
             f"In the callback: {self.M=}, {self.shape=}, {iter=}, {beta=}, {num_keys=}"
         )
-        image = reconstruct_image(self.M, self.shape, N, G, Y)
-        max_G = max(map(len, G.data()))
-        P = len(N)
+        image = reconstruct_image(self.M, self.shape, G, Y)
+        v_len = np.vectorize(lambda x: len(x) if x else 0)
+        g_len = v_len(G.data)
+        max_G = g_len.max()
+        P = np.count_nonzero(g_len)
+        logging.info(f"{max_G=}, {P=}")
         logging.debug(f"{image.shape}")
         self.aim_run.track(
             {
@@ -122,7 +125,7 @@ class L0Callback:
             step=iter,
             context={"context": "step"},
         )
-        logging.debug("Tracking complete")
+        logging.info("Tracking complete")
         plt.close()
 
 

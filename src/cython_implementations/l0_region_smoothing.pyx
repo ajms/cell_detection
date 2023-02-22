@@ -2,14 +2,8 @@
 import logging
 from typing import Callable
 
-import cython
 import matplotlib.pyplot as plt
 import numpy as np
-
-cimport numpy as np
-
-np.import_array()
-
 import scipy.sparse as sp
 from tqdm import tqdm
 
@@ -96,14 +90,13 @@ def create_c_N(shape: tuple[int]) -> sp.lil_array:
     row = [len(elt[1]) * [elt[0]] for elt in zipped]
     row = [elt for nested in row for elt in nested]
     assert len(col) == len(row), f"{len(col)=}, {len(row)=}"
-    data = np.ones(len(row), dtype=np.uint8)
+    data = np.ones(len(row), dtype=np.intc)
     return sp.coo_array((data, (row, col)), shape=(M, M)).tolil()
 
 
 def reconstruct_image(
     M: int,
     shape: tuple[int],
-    c: sp.lil_array,
     G: sp.lil_array,
     Y: np.ndarray,
 ) -> np.ndarray:
@@ -145,11 +138,15 @@ def l0_region_smoothing(
     Returns:
         np.ndarray: return image with smoothened regions
     """
-    M = np.product((image.shape[0], image.shape[1], image.shape[2]))
+    M: cython.int = np.product(image.shape, dtype=np.intc)
     Y = image.flatten()
-    G = sp.coo_array((np.ones(M), (np.arange(0, M, 1), np.arange(0, M, 1)))).tolil()
-    w = np.ones(M)
-    c = create_c_N((image.shape[0], image.shape[1], image.shape[2]))
+    y_view: cython.double[:] = Y
+    logging.info("Initialize G")
+    G = sp.coo_array((np.ones(M), (np.arange(0, M, 1), np.arange(0, M, 1))), dtype=np.intc).tolil()
+    w = np.ones(M, dtype=np.intc)
+    w_view: cython.double[:] = w
+    logging.info("Initialize c")
+    c = create_c_N(image.shape)
     beta: cython.double = 0.0
     iter: cython.int = 0
     lambda_c: cython.double = lambda_
@@ -158,9 +155,16 @@ def l0_region_smoothing(
     i: cython.Py_ssize_t
     j: cython.Py_ssize_t
     k: cython.Py_ssize_t
+    l: cython.Py_ssize_t
+    jj: cython.Py_ssize_t
+    kk: cython.Py_ssize_t
+    ll: cython.Py_ssize_t
+    jj_max: cython.Py_ssize_t
+    kk_max: cython.Py_ssize_t
+    ll_max: cython.Py_ssize_t
+    n_keys: cython.Py_ssize_t = G.shape[0]
 
-    n_keys: cython.int = G.shape[0]
-
+    logging.info("Start iterations")
     while beta < lambda_c:
         if callback:
             callback(
@@ -175,30 +179,40 @@ def l0_region_smoothing(
             )
         print(f"{iter=}, {beta=}, {n_keys=}")
         for i in tqdm(range(n_keys)):
-            for j in c.rows[i]:
-                lhs = w[i] * w[j] * (Y[i] - Y[j]) ** 2
-                rhs = beta * c[i,j] * (w[i] + w[j])
+            if w_view[i] == 0:
+                continue
+            jj = 0
+            jj_max = len(c.rows[i])
+            while jj < jj_max:
+                j = c.rows[i][jj]
+                lhs = w_view[i] * w_view[j] * (y_view[i] - y_view[j]) ** 2
+                rhs = beta * c[i,j] * (w_view[i] + w_view[j])
                 if lhs <= rhs:
-                    logging.info(f"{G.rows[j]=}")
-                    num_elts: cython.int = len(G.rows[j])
-                    for l in range(num_elts):
-                        G[i,G.rows[j][l]] = G.data[j][l]
-                    Y[i] = (w[i] * Y[i] + w[j] * Y[j]) / (w[i] + w[j])
-                    w[i] = w[i] + w[j]
+                    ll_max = len(G.rows[j])
+                    for ll in range(ll_max):
+                        l = G.rows[j][ll]
+                        G[i,l] = G.data[j][ll]
+                    y_view[i] = (w_view[i] * y_view[i] + w_view[j] * y_view[j]) / (w_view[i] + w_view[j])
+                    w_view[i] = w_view[i] + w_view[j]
                     c[i, j] = 0
-                    for k in c.rows[j]:
+                    jj_max -= 1
+                    kk_max = len(c.rows[j])
+                    for kk in range(kk_max):
+                        k = c.rows[j][kk]
                         if k == i:
                             continue
                         if k in c.rows[i]:
                             c[i, k] += c[j, k]
-                            c[k,i] += c[j, k]
+                            c[k, i] += c[j, k]
                         else:
                             c[i, k] = c[j, k]
-                            c[k, i] = c[k, j]
+                            c[k, i] = c[j, k]
                         c[k, j] = 0
                     G.data[j] = []
                     G.rows[j] = []
-                    w[j] = 0
+                    w_view[j] = 0
+                jj += 1
+
 
         iter += 1
         beta = (iter / K_c) ** gamma_c * lambda_
