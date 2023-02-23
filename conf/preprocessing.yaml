@@ -8,7 +8,7 @@ image:
     radius: 80
   l0_smoothing: None
   l0_region:
-    lambda_: 7e-4
+    lambda_: 7e-3
     K: 10
     gamma: 2.2
   q_lower_bound: 1e-2

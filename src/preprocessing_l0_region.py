@@ -69,7 +69,7 @@ def main(cfg: DictConfig):
         aim_run.track(
             {
                 "L0": plot_2d(smooth[:, image_center[1]]),
-                "L0 + unsharp": plot_2d(unsharp_mask[image_center]),
+                "L0 + unsharp": plot_2d(unsharp_mask[image_center[0]]),
             },
             context={"context": "final"},
         )

@@ -1,7 +1,6 @@
 import getpass
 import logging
 import subprocess
-import sys
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable
@@ -88,44 +87,33 @@ class L0Callback:
         self,
         iter: int | None = None,
         beta: float | None = None,
-        num_keys: int | None = None,
-        N: None | dict[int, set] = None,
+        n_keys: None | np.ndarray = None,
         G: None | dict[int, list] = None,
         Y: None | dict[int, np.float16] = None,
         w: None | dict[int, int] = None,
     ):
-        logging.info(
-            f"In the callback: {self.M=}, {self.shape=}, {iter=}, {beta=}, {num_keys=}"
-        )
-        image = reconstruct_image(self.M, self.shape, G, Y)
+        logging.info(f"In the callback: {self.M=}, {self.shape=}, {iter=}, {beta=}")
         v_len = np.vectorize(lambda x: len(x) if x else 0)
-        g_len = v_len(G.data)
-        max_G = g_len.max()
-        P = np.count_nonzero(g_len)
-        logging.info(f"{max_G=}, {P=}")
-        logging.debug(f"{image.shape}")
+        max_G = v_len(G.data).max()
+        logging.info(f"{max_G=}, {len(n_keys)=}")
+        image = reconstruct_image(self.M, self.shape, G, Y)
         self.aim_run.track(
             {
                 "beta": beta,
-                "n_keys": num_keys,
-                "P": P,
-                "number of groups": G.rows.shape[0],
                 "biggest group": max_G,
+                "n_keys": len(n_keys),
                 "max weight": w.max(),
                 "image": plot_2d(
                     image if len(self.shape) == 2 else image[self.shape[0] // 2]
                 ),
                 "histogram": aim.Distribution(image.flatten()),
                 "quantiles": plot_quantiles(image=image),
-                "N memory": sys.getsizeof(N),
-                "G memory": sys.getsizeof(G),
-                "Y memory": sys.getsizeof(Y),
-                "w memory": sys.getsizeof(w),
             },
             step=iter,
             context={"context": "step"},
         )
         logging.info("Tracking complete")
+        plt.clf()
         plt.close()
 
 

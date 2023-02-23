@@ -10,6 +10,8 @@ from tqdm import tqdm
 from src.image_loader import CellImage
 from src.utils.storage import get_project_root
 
+cimport cython
+
 
 def neighbour(
     shape: tuple[int], index: tuple[int], flat: bool = False
@@ -113,19 +115,29 @@ def reconstruct_image(
         np.ndarray: reconstructed image
     """
     S = np.zeros((M,))
-    for i in range(M):
+
+    for i in remaining_keys(G):
         for j in G.rows[i]:
             S[j] = Y[i]
     return S.reshape(shape)
 
+v_keys = np.vectorize(lambda x: len(x))
 
+def remaining_keys(G):
+    g_len = v_keys(G.rows)
+    assert g_len.sum() == len(G.rows), f"{g_len.sum()=}"
+    n_keys = np.nonzero(g_len)[0]
+    return n_keys
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
 def l0_region_smoothing(
-    image: np.ndarray,
-    lambda_: float = 0.01,
-    K: int = 20,
-    gamma: float = 2.2,
-    callback: None | Callable = None,
-) -> np.ndarray:
+    image,
+    float lambda_,
+    int K,
+    float gamma,
+    callback,
+):
     """L0 region smoothing adapted from paper Fast and Effective L0 Gradient Minimization by Region Fusion by Nguyen et al.
 
     Args:
@@ -138,58 +150,49 @@ def l0_region_smoothing(
     Returns:
         np.ndarray: return image with smoothened regions
     """
-    M: cython.int = np.product(image.shape, dtype=np.intc)
+    cdef int M = np.product(image.shape, dtype=np.intc).item()
     Y = image.flatten()
-    y_view: cython.double[:] = Y
+    cdef double lhs, rhs
+    cdef double[:] y_view = Y
     logging.info("Initialize G")
     G = sp.coo_array((np.ones(M), (np.arange(0, M, 1), np.arange(0, M, 1))), dtype=np.intc).tolil()
     w = np.ones(M, dtype=np.intc)
-    w_view: cython.double[:] = w
+    cdef int[:] w_view = w
     logging.info("Initialize c")
     c = create_c_N(image.shape)
-    beta: cython.double = 0.0
-    iter: cython.int = 0
-    lambda_c: cython.double = lambda_
-    K_c: cython.int = K
-    gamma_c: cython.double = gamma
-    i: cython.Py_ssize_t
-    j: cython.Py_ssize_t
-    k: cython.Py_ssize_t
-    l: cython.Py_ssize_t
-    jj: cython.Py_ssize_t
-    kk: cython.Py_ssize_t
-    ll: cython.Py_ssize_t
-    jj_max: cython.Py_ssize_t
-    kk_max: cython.Py_ssize_t
-    ll_max: cython.Py_ssize_t
-    n_keys: cython.Py_ssize_t = G.shape[0]
+    cdef double beta
+    cdef Py_ssize_t iter, i, j, k, l, jj, kk, ll
+    cdef Py_ssize_t jj_max, kk_max, ll_max
+    beta = 0.0
+    iter = 0
+    v_keys = np.vectorize(lambda x: len(x))
 
     logging.info("Start iterations")
-    while beta < lambda_c:
+    while beta < lambda_:
+        n_keys = remaining_keys(G)
         if callback:
             callback(
                 **{
                     "iter": iter,
                     "beta": beta,
-                    "num_keys": n_keys,
+                    "n_keys": n_keys,
                     "Y": Y,
                     "G": G,
                     "w": w,
                 }
             )
-        print(f"{iter=}, {beta=}, {n_keys=}")
-        for i in tqdm(range(n_keys)):
-            if w_view[i] == 0:
-                continue
+        print(f"{iter=}, {beta=}, {len(n_keys)=}")
+        for i in tqdm(n_keys):
+            assert Y[i] == y_view[i]
             jj = 0
             jj_max = len(c.rows[i])
             while jj < jj_max:
-                j = c.rows[i][jj]
+                j = c.rows[i][jj]  # j in N[i]
                 lhs = w_view[i] * w_view[j] * (y_view[i] - y_view[j]) ** 2
                 rhs = beta * c[i,j] * (w_view[i] + w_view[j])
                 if lhs <= rhs:
                     ll_max = len(G.rows[j])
-                    for ll in range(ll_max):
+                    for ll in range(ll_max):  # G[i] union G[j]
                         l = G.rows[j][ll]
                         G[i,l] = G.data[j][ll]
                     y_view[i] = (w_view[i] * y_view[i] + w_view[j] * y_view[j]) / (w_view[i] + w_view[j])
@@ -198,7 +201,7 @@ def l0_region_smoothing(
                     jj_max -= 1
                     kk_max = len(c.rows[j])
                     for kk in range(kk_max):
-                        k = c.rows[j][kk]
+                        k = c.rows[j][kk]  # k in N[j]
                         if k == i:
                             continue
                         if k in c.rows[i]:
@@ -208,45 +211,16 @@ def l0_region_smoothing(
                             c[i, k] = c[j, k]
                             c[k, i] = c[j, k]
                         c[k, j] = 0
-                    G.data[j] = []
+                    G.data[j] = []  # delete G[j]
                     G.rows[j] = []
-                    w_view[j] = 0
+                    c.data[j] = []  # delete N[j]
+                    c.rows[j] = []
+                    w_view[j] = 0  # delete w[j]
                 jj += 1
 
 
         iter += 1
-        beta = (iter / K_c) ** gamma_c * lambda_
+        beta = (iter / K) ** gamma * lambda_
 
     logging.info(f"Stopped at {beta=}")
-    return reconstruct_image(M, (image.shape[0], image.shape[1], image.shape[2]), G, Y)
-
-
-if __name__ == "__main__":
-    # slc = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]])
-    # arr = np.array([slc * 10, slc * 100, slc * 1_000, slc * 10_000])
-    # neighbour_idx = neighbour(arr.shape, (2, 2, 2))
-    # print(f"{neighbour_idx=}")
-    # neighbour_idx2 = neighbour(arr.shape[:2], (2, 2))
-    # print(f"{neighbour_idx2=}")
-    # neightbour_flattend = np.ravel_multi_index(
-    #     tuple(zip(*neighbour_idx)), dims=arr.shape
-    # )
-    # print(f"{neightbour_flattend=}")
-
-    # c, N = create_cij((4, 4, 4))
-    # print(f"{c=}, {N=}")
-
-    path_to_file = get_project_root() / "data/cell-detection/raw/cropped_first_third.h5"
-    ci = CellImage(path=path_to_file)
-
-    imslice = ci.get_slice(
-        x=356,
-        equalize=None,
-        regenerate=False,
-    )
-
-    imslice = ci._normalize(image=imslice)
-    smooth = l0_region_smoothing(imslice)
-    plt.imshow(smooth)
-
-    plt.show()
+    return reconstruct_image(M, image.shape, G, Y)
