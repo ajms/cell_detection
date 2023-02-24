@@ -160,6 +160,7 @@ def l0_region_smoothing(
     cdef int[:] w_view = w
     logging.info("Initialize c")
     c = create_c_N(image.shape)
+    logging.info("Initialization of c finished")
     cdef double beta
     cdef Py_ssize_t iter, i, j, k, l, jj, kk, ll
     cdef Py_ssize_t jj_max, kk_max, ll_max

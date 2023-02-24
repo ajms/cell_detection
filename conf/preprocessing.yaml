@@ -14,8 +14,8 @@ image:
   q_lower_bound: 1e-2
   slice:
     x:
-      - 360
-      - 370
+      - 300
+      - 380
     y:
       - 50
       - -50
