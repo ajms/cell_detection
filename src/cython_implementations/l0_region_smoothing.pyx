@@ -1,4 +1,7 @@
 # cython: infer_types=True
+# distutils: language = c++
+
+from libcpp.vector cimport vector
 import logging
 from typing import Callable
 

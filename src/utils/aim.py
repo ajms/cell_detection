@@ -9,6 +9,7 @@ import aim
 import matplotlib.pyplot as plt
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
+from skimage import io
 
 from src.cython_implementations.l0_region_smoothing import reconstruct_image
 from src.utils.storage import get_project_root
@@ -97,6 +98,7 @@ class L0Callback:
         max_G = v_len(G.data).max()
         logging.info(f"{max_G=}, {len(n_keys)=}")
         image = reconstruct_image(self.M, self.shape, G, Y)
+        io.imsave(f"image_step_{iter}.tif", image)
         self.aim_run.track(
             {
                 "beta": beta,

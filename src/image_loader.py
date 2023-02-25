@@ -198,6 +198,6 @@ if __name__ == "__main__":
     )
     img = ci.image[360:370, 50:-50, 50:-50]
     # img = io.imread(
-    #     "/home/albert/repos/cell_detection/data/cell-detection/exp/2023-02-22_11:29:13/smooth_image.tif"
+    #     "/home/albert/repos/cell_detection/data/cell-detection/exp/2023-02-23_12:23:19/smooth_image.tif"
     # )
     ci.show_3d(img)

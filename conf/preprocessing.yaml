@@ -8,14 +8,14 @@ image:
     radius: 80
   l0_smoothing: None
   l0_region:
-    lambda_: 7e-3
-    K: 10
+    lambda_: 4e-3
+    K: 12
     gamma: 2.2
   q_lower_bound: 1e-2
   slice:
     x:
-      - 300
-      - 380
+      - 330
+      - 370
     y:
       - 50
       - -50
