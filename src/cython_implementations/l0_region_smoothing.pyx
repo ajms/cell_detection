@@ -110,9 +110,8 @@ def reconstruct_image(
     Args:
         M (int): length of flattened image
         shape (tuple[int]): shape of image
-        N (dict[int, set]): dictionary of neighbours
-        G (dict[int, list]): dictionary of groups
-        Y (dict[int, np.float16]): dictionary of group intensities
+        G (sp.lil_array): sparse matrix of groups
+        Y (np.ndarray): dictionary of group intensities
 
     Returns:
         np.ndarray: reconstructed image
@@ -136,10 +135,10 @@ def remaining_keys(G):
 @cython.wraparound(False)
 def l0_region_smoothing(
     image,
-    float lambda_,
-    int K,
-    float gamma,
-    callback,
+    float lambda_ = 1e-2,
+    int K = 20,
+    float gamma = 2.2,
+    callback = None,
 ):
     """L0 region smoothing adapted from paper Fast and Effective L0 Gradient Minimization by Region Fusion by Nguyen et al.
 
