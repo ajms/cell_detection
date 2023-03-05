@@ -1,18 +1,19 @@
+# cython: infer_types=True
+# distutils: language = c++
+
+from libcpp.vector cimport vector
 import logging
 from typing import Callable
 
 import matplotlib.pyplot as plt
 import numpy as np
-
-cimport numpy as np
-
-np.import_array()
-import cython
 import scipy.sparse as sp
 from tqdm import tqdm
 
 from src.image_loader import CellImage
 from src.utils.storage import get_project_root
+
+cimport cython
 
 
 def neighbour(
@@ -69,7 +70,7 @@ def neighbour(
         return neighbours
 
 
-def create_c_N(shape: tuple[int]) -> tuple[sp.coo_array, dict[int, tuple[int]]]:
+def create_c_N(shape: tuple[int]) -> sp.lil_array:
     """Initialize sparse matrix of neighbour relations and dictionary of neighbours for each index.
 
     Args:
@@ -94,45 +95,51 @@ def create_c_N(shape: tuple[int]) -> tuple[sp.coo_array, dict[int, tuple[int]]]:
     row = [len(elt[1]) * [elt[0]] for elt in zipped]
     row = [elt for nested in row for elt in nested]
     assert len(col) == len(row), f"{len(col)=}, {len(row)=}"
-    data = np.ones(len(row), dtype=np.uint8)
-    return sp.coo_array((data, (row, col)), shape=(M, M), dtype=np.uint32).tolil(), {
-        i: set(nb) for i, nb in zipped
-    }
+    data = np.ones(len(row), dtype=np.intc)
+    return sp.coo_array((data, (row, col)), shape=(M, M)).tolil()
 
 
 def reconstruct_image(
     M: int,
     shape: tuple[int],
-    N: dict[int, set],
-    G: dict[int, list],
-    Y: dict[int, np.float16],
+    G: sp.lil_array,
+    Y: np.ndarray,
 ) -> np.ndarray:
     """Reconstruct the image from the groups from the l0-region-smoothing
 
     Args:
         M (int): length of flattened image
         shape (tuple[int]): shape of image
-        N (dict[int, set]): dictionary of neighbours
-        G (dict[int, list]): dictionary of groups
-        Y (dict[int, np.float16]): dictionary of group intensities
+        G (sp.lil_array): sparse matrix of groups
+        Y (np.ndarray): dictionary of group intensities
 
     Returns:
         np.ndarray: reconstructed image
     """
     S = np.zeros((M,))
-    for i in N.keys():
-        for j in G[i]:
+
+    for i in remaining_keys(G):
+        for j in G.rows[i]:
             S[j] = Y[i]
     return S.reshape(shape)
 
+v_keys = np.vectorize(lambda x: len(x))
 
+def remaining_keys(G):
+    g_len = v_keys(G.rows)
+    assert g_len.sum() == len(G.rows), f"{g_len.sum()=}"
+    n_keys = np.nonzero(g_len)[0]
+    return n_keys
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
 def l0_region_smoothing(
-    image: np.ndarray,
-    lambda_: float = 0.01,
-    K: int = 20,
-    gamma: float = 2.2,
-    callback: None | Callable = None,
-) -> np.ndarray:
+    image,
+    float lambda_ = 1e-2,
+    int K = 20,
+    float gamma = 2.2,
+    callback = None,
+):
     """L0 region smoothing adapted from paper Fast and Effective L0 Gradient Minimization by Region Fusion by Nguyen et al.
 
     Args:
@@ -145,89 +152,78 @@ def l0_region_smoothing(
     Returns:
         np.ndarray: return image with smoothened regions
     """
-    M: cython.int = image.shape[0] * image.shape[1] * image.shape[2]
-    Y: cython.dict = {i: Ii for i, Ii in enumerate(image.flatten())}
-    G: cython.dict = {i: [i] for i in np.arange(M)}
-    w: cython.dict = {i: 1 for i in np.arange(M)}
-    c: sp.lil_array
-    N: cython.dict
-    c, N = create_c_N((image.shape[0], image.shape[1], image.shape[2]))
-    beta: cython.float = 0.0
-    iter: cython.int = 0
-    i: cython.int = 0
+    cdef int M = np.product(image.shape, dtype=np.intc).item()
+    Y = image.flatten()
+    cdef double lhs, rhs
+    cdef double[:] y_view = Y
+    logging.info("Initialize G")
+    G = sp.coo_array((np.ones(M), (np.arange(0, M, 1), np.arange(0, M, 1))), dtype=np.intc).tolil()
+    w = np.ones(M, dtype=np.intc)
+    cdef int[:] w_view = w
+    logging.info("Initialize c")
+    c = create_c_N(image.shape)
+    logging.info("Initialization of c finished")
+    cdef double beta
+    cdef Py_ssize_t iter, i, j, k, l, jj, kk, ll
+    cdef Py_ssize_t jj_max, kk_max, ll_max
+    beta = 0.0
+    iter = 0
+    v_keys = np.vectorize(lambda x: len(x))
+
+    logging.info("Start iterations")
     while beta < lambda_:
-        n_keys = list(N.keys())
+        n_keys = remaining_keys(G)
         if callback:
             callback(
                 **{
                     "iter": iter,
                     "beta": beta,
                     "n_keys": n_keys,
-                    "N": N,
                     "Y": Y,
                     "G": G,
                     "w": w,
                 }
             )
         print(f"{iter=}, {beta=}, {len(n_keys)=}")
-        for i in n_keys:
-            for j in N.get(i, []):
-                lhs = w[i] * w[j] * (Y[i] - Y[j]) ** 2
-                rhs = beta * c[i, j] * (w[i] + w[j])
+        for i in tqdm(n_keys):
+            assert Y[i] == y_view[i]
+            jj = 0
+            jj_max = len(c.rows[i])
+            while jj < jj_max:
+                j = c.rows[i][jj]  # j in N[i]
+                lhs = w_view[i] * w_view[j] * (y_view[i] - y_view[j]) ** 2
+                rhs = beta * c[i,j] * (w_view[i] + w_view[j])
                 if lhs <= rhs:
-                    G[i] += G[j]
-                    Y[i] = (w[i] * Y[i] + w[j] * Y[j]) / (w[i] + w[j])
-                    w[i] = w[i] + w[j]
+                    ll_max = len(G.rows[j])
+                    for ll in range(ll_max):  # G[i] union G[j]
+                        l = G.rows[j][ll]
+                        G[i,l] = G.data[j][ll]
+                    y_view[i] = (w_view[i] * y_view[i] + w_view[j] * y_view[j]) / (w_view[i] + w_view[j])
+                    w_view[i] = w_view[i] + w_view[j]
                     c[i, j] = 0
-                    N[i] = N[i].difference({j})
-                    for k in N[j].difference({i}):
-                        if k in N[i]:
-                            c[i, k] = c[i, k] + c[j, k]
-                            c[k, i] = c[i, k] + c[j, k]
+                    jj_max -= 1
+                    kk_max = len(c.rows[j])
+                    for kk in range(kk_max):
+                        k = c.rows[j][kk]  # k in N[j]
+                        if k == i:
+                            continue
+                        if k in c.rows[i]:
+                            c[i, k] += c[j, k]
+                            c[k, i] += c[j, k]
                         else:
-                            N[i].add(k)
-                            N[k].add(i)
                             c[i, k] = c[j, k]
-                            c[k, i] = c[k, j]
-                        N[k] = N[k].difference({j})
+                            c[k, i] = c[j, k]
                         c[k, j] = 0
-                    G.pop(j), N.pop(j), w.pop(j)
+                    G.data[j] = []  # delete G[j]
+                    G.rows[j] = []
+                    c.data[j] = []  # delete N[j]
+                    c.rows[j] = []
+                    w_view[j] = 0  # delete w[j]
+                jj += 1
+
 
         iter += 1
         beta = (iter / K) ** gamma * lambda_
 
-    logging.info(f"Stopped at {beta=} with {len(N.keys())=}")
-    return reconstruct_image(M, (image.shape[0], image.shape[1], image.shape[2]), N, G, Y)
-
-
-if __name__ == "__main__":
-    # slc = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]])
-    # arr = np.array([slc * 10, slc * 100, slc * 1_000, slc * 10_000])
-    # neighbour_idx = neighbour(arr.shape, (2, 2, 2))
-    # print(f"{neighbour_idx=}")
-    # neighbour_idx2 = neighbour(arr.shape[:2], (2, 2))
-    # print(f"{neighbour_idx2=}")
-    # neightbour_flattend = np.ravel_multi_index(
-    #     tuple(zip(*neighbour_idx)), dims=arr.shape
-    # )
-    # print(f"{neightbour_flattend=}")
-
-    # c, N = create_cij((4, 4, 4))
-    # print(f"{c=}, {N=}")
-
-    path_to_file = get_project_root() / "data/cell-detection/raw/cropped_first_third.h5"
-    ci = CellImage(path=path_to_file)
-
-    imslice = ci.get_slice(
-        x=356,
-        equalize="local",
-        lower_bound=0,
-        unsharp_mask={"radius": 80, "amount": 2},
-        regenerate=False,
-    )
-
-    imslice = imslice.astype(np.float16)
-    smooth = l0_region_smoothing(imslice)
-    plt.imshow(smooth)
-
-    plt.show()
+    logging.info(f"Stopped at {beta=}")
+    return reconstruct_image(M, image.shape, G, Y)

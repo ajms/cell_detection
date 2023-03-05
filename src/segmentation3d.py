@@ -31,28 +31,26 @@ def main(cfg: DictConfig):
             q_lower_bound=cfg.image.q_lower_bound,
             unsharp_mask=cfg.image.unsharp_mask,
             regenerate=cfg.image.regenerate,
-            l0_smoothing=cfg.image.l0_smoothing,
+            # l0_smoothing=cfg.image.l0_smoothing,
         )
-        image = ci.image[
-            cfg.image.slice.x[0] : cfg.image.slice.x[1],
-            cfg.image.slice.y[0] : cfg.image.slice.y[1],
-            cfg.image.slice.z[0] : cfg.image.slice.z[1],
-        ]
+        # ci.image = ci.image[
+        #     cfg.image.slice.x[0] : cfg.image.slice.x[1],
+        #     cfg.image.slice.y[0] : cfg.image.slice.y[1],
+        #     cfg.image.slice.z[0] : cfg.image.slice.z[1],
+        # ]
 
-        del ci
-
-        levelset_center = np.array(image.shape) // 2
+        levelset_center = np.array(ci.image.shape) // 2
         levelset_radius = int(levelset_center.min() * 0.8)
         logging.info(f"{levelset_center=}, {levelset_radius=}")
 
         levelset = signed_distance_map(
             checkerboard_level_set(
-                image_shape=image.shape,
-                square_size=10,
+                image_shape=ci.image.shape,
+                square_size=20,
             )
         )
 
-        image = filters.gaussian(image, sigma=cfg.preprocessing.sigma)
+        ci.image = filters.gaussian(ci.image, sigma=cfg.preprocessing.sigma)
         lambda2 = 2 - cfg.ol.lambda1
 
         logging.info("Initial plots")
@@ -64,7 +62,7 @@ def main(cfg: DictConfig):
         aim_run.track(
             {
                 "initial levelset": plot_3d(levelset[levelset_center[0], :, :]),
-                "smoothened image": plot_2d(image[levelset_center[0], :, :]),
+                "smoothened image": plot_2d(ci.image[levelset_center[0], :, :]),
             },
             context={"context": "initial", "x": f"{levelset_center[0]}"},
         )
@@ -76,7 +74,7 @@ def main(cfg: DictConfig):
             aim_run=aim_run,
             cfg=cfg,
             fun=ol_loss,
-            image=image,
+            image=ci.image,
             lambda2=lambda2,
             x=(
                 2 * levelset_center[0] // 3,
@@ -90,7 +88,7 @@ def main(cfg: DictConfig):
             method="L-BFGS-B",
             jac=True,
             args=(
-                image,
+                ci.image,
                 cfg.ol.lambda1,  # lambda 1
                 lambda2,  # lambda 2
                 cfg.ol.mu,  # mu
@@ -102,7 +100,7 @@ def main(cfg: DictConfig):
         )
 
         logging.info("Preparing plots")
-        levelset = res.x.reshape(image.shape)
+        levelset = res.x.reshape(ci.image.shape)
         del res
         logging.info(f"{np.count_nonzero(np.abs(levelset) < cfg.ol.epsilon)=}")
         io.imsave(Path.cwd() / "levelset.tif", levelset)
@@ -130,6 +128,7 @@ def main(cfg: DictConfig):
         aim_run.track(
             {
                 "final levelset": plot_3d(levelset[levelset_center[0], :, :]),
+                "levelset 2d": plot_2d(levelset[levelset_center[0], :, :]),
                 "segmentation": plot_2d(img_segmentation[levelset_center[0], :, :]),
             },
             context={"context": "final"},

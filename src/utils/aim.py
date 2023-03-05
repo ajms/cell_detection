@@ -1,7 +1,6 @@
 import getpass
 import logging
 import subprocess
-import sys
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable
@@ -10,8 +9,10 @@ import aim
 import matplotlib.pyplot as plt
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
+from skimage import io
 
-from src.l0_region_smoothing import reconstruct_image
+import src.cython_implementations.l0_region_smoothing as cyth
+import src.l0_region_smoothing as pyth
 from src.utils.storage import get_project_root
 from src.visualization import plot_2d, plot_3d, plot_quantiles
 
@@ -72,7 +73,7 @@ def _git_branch() -> str:
     return branch
 
 
-class L0Callback:
+class L0CallbackPyth:
     def __init__(
         self,
         aim_run: aim.Run,
@@ -97,15 +98,13 @@ class L0Callback:
         logging.debug(
             f"In the callback: {self.M=}, {self.shape=}, {iter=}, {beta=}, {len(n_keys)=}"
         )
-        image = reconstruct_image(self.M, self.shape, N, G, Y)
+        image = pyth.reconstruct_image(self.M, self.shape, N, G, Y)
         max_G = max(map(len, G.values()))
-        P = len(N)
         logging.debug(f"{image.shape}")
         self.aim_run.track(
             {
                 "beta": beta,
                 "n_keys": len(n_keys),
-                "P": P,
                 "number of groups": len(G),
                 "biggest group": max_G,
                 "max weight": max(w.values()),
@@ -114,15 +113,58 @@ class L0Callback:
                 ),
                 "histogram": aim.Distribution(image.flatten()),
                 "quantiles": plot_quantiles(image=image),
-                "N memory": sys.getsizeof(N),
-                "G memory": sys.getsizeof(G),
-                "Y memory": sys.getsizeof(Y),
-                "w memory": sys.getsizeof(w),
             },
             step=iter,
             context={"context": "step"},
         )
         logging.debug("Tracking complete")
+        plt.close()
+
+
+class L0Callback:
+    def __init__(
+        self,
+        aim_run: aim.Run,
+        cfg: OmegaConf,
+        shape: tuple[int],
+    ):
+        self.aim_run = aim_run
+        self.cfg = cfg
+        self.shape = shape
+        self.M = np.product(shape, dtype=np.int32).item()
+
+    def l0_callback(
+        self,
+        iter: int | None = None,
+        beta: float | None = None,
+        n_keys: None | np.ndarray = None,
+        G: None | dict[int, list] = None,
+        Y: None | dict[int, np.float16] = None,
+        w: None | dict[int, int] = None,
+    ):
+        logging.info(f"In the callback: {self.M=}, {self.shape=}, {iter=}, {beta=}")
+        v_len = np.vectorize(lambda x: len(x) if x else 0)
+        max_G = v_len(G.data).max()
+        logging.info(f"{max_G=}, {len(n_keys)=}")
+        image = cyth.reconstruct_image(self.M, self.shape, G, Y)
+        io.imsave(f"image_step_{iter}.tif", image)
+        self.aim_run.track(
+            {
+                "beta": beta,
+                "biggest group": max_G,
+                "n_keys": len(n_keys),
+                "max weight": w.max(),
+                "image": plot_2d(
+                    image if len(self.shape) == 2 else image[self.shape[0] // 2]
+                ),
+                "histogram": aim.Distribution(image.flatten()),
+                "quantiles": plot_quantiles(image=image),
+            },
+            step=iter,
+            context={"context": "step"},
+        )
+        logging.info("Tracking complete")
+        plt.clf()
         plt.close()
 
 

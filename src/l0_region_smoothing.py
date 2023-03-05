@@ -155,7 +155,7 @@ def l0_region_smoothing(
                 **{
                     "iter": iter,
                     "beta": beta,
-                    "n_keys": n_keys,
+                    "num_keys": len(n_keys),
                     "N": N,
                     "Y": Y,
                     "G": G,
@@ -181,7 +181,7 @@ def l0_region_smoothing(
                             N[i].add(k)
                             N[k].add(i)
                             c[i, k] = c[j, k]
-                            c[k, i] = c[k, j]
+                            c[k, i] = c[j, k]
                         N[k] = N[k].difference({j})
                         c[k, j] = 0
                     G.pop(j), N.pop(j), w.pop(j)

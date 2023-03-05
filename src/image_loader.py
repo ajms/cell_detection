@@ -25,9 +25,12 @@ class CellImage:
     edges: np.ndarray = field(init=False)
 
     def __post_init__(self):
-        self.hf = h5py.File(self.path, "r")
-        self.dset = self.hf[list(self.hf.keys())[-1]]
-        logging.debug(f"{list(self.hf.keys())=}")
+        if self.path.suffix == ".tif":
+            self.image = io.imread(self.path)
+        else:
+            self.hf = h5py.File(self.path, "r")
+            self.dset = self.hf[list(self.hf.keys())[-1]]
+            logging.debug(f"{list(self.hf.keys())=}")
 
     def read_image(
         self,
@@ -50,10 +53,11 @@ class CellImage:
             logging.info(f"Reading image from harddisk: {path_to_img}")
             self.image = io.imread(path_to_img)
         else:
-            self.image = self.dset[0, :, 890:, 950:1500, 0]
-            logging.info(f"{self.image.shape=}")
-            logging.info(f"{self.image.dtype=}")
-            logging.info(f"{self.image.min()=}, {self.image.max()=}")
+            if self.path.suffix != ".tif":
+                self.image = self.dset[0, :, 890:, 950:1500, 0]
+                logging.info(f"{self.image.shape=}")
+                logging.info(f"{self.image.dtype=}")
+                logging.info(f"{self.image.min()=}, {self.image.max()=}")
             if q_lower_bound:
                 self.image = self.lower_bound(image=self.image, q=q_lower_bound)
             if equalize == "global":
@@ -177,13 +181,14 @@ class CellImage:
         b = np.max(image)
         a = np.min(image)
         image = (image - a) / (b - a)
-        assert np.round(np.max(image), 0) == 1, np.max(image)
-        assert np.round(np.min(image), 0) == 0, np.min(image)
         return image
 
 
 if __name__ == "__main__":
-    path_to_file = get_project_root() / "data/cell-detection/raw/cropped_first_third.h5"
+    path_to_file = (
+        get_project_root()
+        / "data/cell-detection/exp/2023-02-26_10:22:51/smooth_image.tif"
+    )
     ci = CellImage(path=path_to_file)
     repo = get_project_root() / "data/cell-detection/aim"
     # imslice = ci.get_slice(
@@ -193,9 +198,13 @@ if __name__ == "__main__":
     #     regenerate=False,
     # )
     # ci.show(imslice)
-    ci.read_image(
-        equalize=None,
-        q_lower_bound=0.01,
-        regenerate=False,
-    )
-    ci.show_3d()
+    # ci.read_image(
+    #     equalize=None,
+    #     q_lower_bound=0.01,
+    #     regenerate=False,
+    # )
+    img = ci.image
+    # img = io.imread(
+    #     "/home/albert/repos/cell_detection/data/cell-detection/exp/2023-02-23_12:23:19/smooth_image.tif"
+    # )
+    ci.show_3d(img)
