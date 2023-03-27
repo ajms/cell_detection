@@ -9,11 +9,11 @@ preprocessing:
 postprocessing:
   sigma: 0
 image:
-  path: cell-detection/exp/2023-02-26_10:22:51/image_step_8.tif
+  path: cell-detection/exp/2023-03-05_19:26:45/image_step_7.tif
   equalize: None
   regenerate: False
   unsharp_mask:
-    amount: 3
+    amount: 2
     radius: 80
   l0_smoothing:
     lambda_: 0.01

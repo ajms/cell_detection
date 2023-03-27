@@ -187,8 +187,17 @@ class CellImage:
 if __name__ == "__main__":
     path_to_file = (
         get_project_root()
-        / "data/cell-detection/exp/2023-02-26_10:22:51/smooth_image.tif"
+        / "data/cell-detection/exp/2023-03-05_19:26:45/image_step_7.tif"
     )
+    # path_to_file = (
+    #     get_project_root()
+    #     / "data/cell-detection/exp/2023-03-05_16:44:19/image_step_5.tif"
+    # )
+    # path_to_file = (
+    #     get_project_root()
+    #     / "data/cell-detection/exp/2023-02-26_10:22:51/image_step_9.tif"
+    # )
+
     ci = CellImage(path=path_to_file)
     repo = get_project_root() / "data/cell-detection/aim"
     # imslice = ci.get_slice(
@@ -203,8 +212,9 @@ if __name__ == "__main__":
     #     q_lower_bound=0.01,
     #     regenerate=False,
     # )
-    img = ci.image
+    img = ci.equalize_local(ci.image, unsharp_mask={"radius": 80, "amount": 2})
+
     # img = io.imread(
-    #     "/home/albert/repos/cell_detection/data/cell-detection/exp/2023-02-23_12:23:19/smooth_image.tif"
+    #     "/home/albert/repos/cell_detection/data/cell-detection/exp/2023-03-05_19:26:45/image_step_7.tif"
     # )
     ci.show_3d(img)
