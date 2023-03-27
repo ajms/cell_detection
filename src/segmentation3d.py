@@ -24,20 +24,9 @@ CONFIG_PATH = str(get_project_root() / "conf")
 def main(cfg: DictConfig):
     with experiment_context(cfg) as aim_run:
         path_to_file = get_project_root() / "data" / cfg.image.path
-        ci = CellImage(path=path_to_file)
+        ci = CellImage(path=path_to_file, cfg=cfg)
 
-        ci.read_image(
-            equalize=cfg.image.equalize,
-            q_lower_bound=cfg.image.q_lower_bound,
-            unsharp_mask=cfg.image.unsharp_mask,
-            regenerate=cfg.image.regenerate,
-            # l0_smoothing=cfg.image.l0_smoothing,
-        )
-        # ci.image = ci.image[
-        #     cfg.image.slice.x[0] : cfg.image.slice.x[1],
-        #     cfg.image.slice.y[0] : cfg.image.slice.y[1],
-        #     cfg.image.slice.z[0] : cfg.image.slice.z[1],
-        # ]
+        ci.read_image()
 
         levelset_center = np.array(ci.image.shape) // 2
         levelset_radius = int(levelset_center.min() * 0.8)

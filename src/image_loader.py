@@ -7,6 +7,7 @@ import h5py
 import matplotlib.pyplot as plt
 import napari
 import numpy as np
+from omegaconf import DictConfig
 from skimage import exposure, filters, io, morphology
 
 from src.utils.storage import get_project_root
@@ -19,6 +20,7 @@ logging.basicConfig(
 @dataclass
 class CellImage:
     path: Path
+    cfg: DictConfig
     hf: h5py.File = field(init=False)
     dset: h5py.Dataset = field(init=False)
     image: np.ndarray = field(init=False)
@@ -32,50 +34,56 @@ class CellImage:
             self.dset = self.hf[list(self.hf.keys())[-1]]
             logging.debug(f"{list(self.hf.keys())=}")
 
-    def read_image(
-        self,
-        regenerate: bool = False,
-        equalize: None | str = None,
-        q_lower_bound: float = 0.0,
-        unsharp_mask: dict = {"radius": 0, "amount": 0},
-        l0_smoothing: None | dict = None,
-    ):
-        if not l0_smoothing:
-            l0_smoothing = {}
+    def read_image(self):
         fname = "_".join(
             map(
                 str,
-                [equalize, q_lower_bound] + list(unsharp_mask) + list(l0_smoothing),
+                [self.cfg.image.equalize, self.cfg.image.q_lower_bound]
+                + list(self.cfg.image.unsharp_mask),
             )
         )
         path_to_img = self.path.parent / f"{self.path.stem}_{fname}.tif"
-        if path_to_img.exists() and not regenerate:
+        if path_to_img.exists() and not self.cfg.image.regenerate:
             logging.info(f"Reading image from harddisk: {path_to_img}")
             self.image = io.imread(path_to_img)
         else:
+            logging.info(f"Load image from h5: {path_to_img}")
             if self.path.suffix != ".tif":
-                self.image = self.dset[0, :, 890:, 950:1500, 0]
+                # self.image = self.dset[0, :, 890:, 950:1500, 0]
+                self.image = self.dset[
+                    0,
+                    self.cfg.image.slice.x[0] : self.cfg.image.slice.x[1],
+                    self.cfg.image.slice.y[0] : self.cfg.image.slice.y[1],
+                    self.cfg.image.slice.z[0] : self.cfg.image.slice.z[1],
+                    0,
+                ]
                 logging.info(f"{self.image.shape=}")
                 logging.info(f"{self.image.dtype=}")
                 logging.info(f"{self.image.min()=}, {self.image.max()=}")
-            if q_lower_bound:
-                self.image = self.lower_bound(image=self.image, q=q_lower_bound)
-            if equalize == "global":
+            if self.cfg.image.q_lower_bound:
+                self.image = self.lower_bound(
+                    image=self.image, q=self.cfg.image.q_lower_bound
+                )
+            if self.cfg.image.equalize == "global":
                 self.image = self.equalize_histogram(self.image)
-            elif equalize == "local":
-                self.image = self.equalize_local(self.image, unsharp_mask=unsharp_mask)
+            elif self.cfg.image.equalize == "local":
+                self.image = self.equalize_local(
+                    self.image, unsharp_mask=self.cfg.image.unsharp_mask
+                )
             else:
                 self.image = self._normalize(image=self.image)
-            if l0_smoothing:
-                self.image = (self.image * 255).astype(np.uint8)
-                l0 = np.zeros(list(self.image.shape))
-                for idx, slice in enumerate(self.image):
-                    l0[idx] = cv2.ximgproc.l0Smooth(src=slice, **l0_smoothing)
-                assert isinstance(l0, np.ndarray), type(l0)
-                self.image = self._normalize(l0)
-                del l0
+            # if self.cfg.image.l0_smoothing:
+            #     self.image = (self.image * 255).astype(np.uint8)
+            #     l0 = np.zeros(list(self.image.shape))
+            #     for idx, slice in enumerate(self.image):
+            #         l0[idx] = cv2.ximgproc.l0Smooth(
+            #             src=slice, **self.cfg.image.l0_smoothing
+            #         )
+            #     assert isinstance(l0, np.ndarray), type(l0)
+            #     self.image = self._normalize(l0)
+            #     del l0
 
-            logging.info(f"Writing slice to harddisk: {path_to_img}")
+            logging.info(f"Writing image to harddisk: {path_to_img}")
             io.imsave(path_to_img, self.image)
 
     def get_slice(
@@ -178,9 +186,9 @@ class CellImage:
 
     def _normalize(self, image: np.ndarray) -> np.ndarray:
         logging.info(f"Normalizing {image.shape=}")
-        b = np.max(image)
-        a = np.min(image)
-        image = (image - a) / (b - a)
+        b = image.min()
+        a = image.max()
+        image = (image.astype(float) - a) / (b - a)
         return image
 
 

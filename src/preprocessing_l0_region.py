@@ -23,7 +23,7 @@ CONFIG_PATH = str(get_project_root() / "conf")
 def main(cfg: DictConfig):
     with experiment_context(cfg) as aim_run:
         path_to_file = get_project_root() / "data" / cfg.image.path
-        ci = CellImage(path=path_to_file)
+        ci = CellImage(path=path_to_file, cfg=cfg)
 
         # uncomment for slice instead of 3d image
         # image = ci.get_slice(
@@ -33,18 +33,7 @@ def main(cfg: DictConfig):
         #     unsharp_mask=cfg.image.unsharp_mask,
         #     regenerate=cfg.image.regenerate,
         # )
-        ci.read_image(
-            equalize=cfg.image.equalize,
-            q_lower_bound=cfg.image.q_lower_bound,
-            unsharp_mask=cfg.image.unsharp_mask,
-            regenerate=cfg.image.regenerate,
-        )
-        logging.info("Slicing image")
-        ci.image = ci.image[
-            cfg.image.slice.x[0] : cfg.image.slice.x[1],
-            cfg.image.slice.y[0] : cfg.image.slice.y[1],
-            cfg.image.slice.z[0] : cfg.image.slice.z[1],
-        ]
+        ci.read_image()
 
         image_center = np.array(ci.image.shape) // 2
 
