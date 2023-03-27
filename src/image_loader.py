@@ -7,7 +7,7 @@ import h5py
 import matplotlib.pyplot as plt
 import napari
 import numpy as np
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from skimage import exposure, filters, io, morphology
 
 from src.utils.storage import get_project_root
@@ -61,8 +61,8 @@ class CellImage:
                 logging.info(f"{self.image.dtype=}")
                 logging.info(f"{self.image.min()=}, {self.image.max()=}")
             if self.cfg.image.q_lower_bound:
-                self.image = self.lower_bound(
-                    image=self.image, q=self.cfg.image.q_lower_bound
+                self.image = self._set_bounds(
+                    image=self.image, lower_q=self.cfg.image.q_lower_bound
                 )
             if self.cfg.image.equalize == "global":
                 self.image = self.equalize_histogram(self.image)
@@ -122,7 +122,7 @@ class CellImage:
                 imslice = self.image[:, :, z]
 
             if q_lower_bound:
-                imslice = self.lower_bound(image=imslice, q=q_lower_bound)
+                imslice = self._set_bounds(image=imslice, lower_q=q_lower_bound)
 
             if equalize == "local":
                 imslice = self.equalize_local(imslice, unsharp_mask=unsharp_mask)
@@ -144,9 +144,16 @@ class CellImage:
         logging.info("equalizing histogram")
         return exposure.equalize_hist(image)
 
-    def lower_bound(self, image: np.ndarray, q: float) -> np.ndarray:
-        q_percentile = np.quantile(image, q)
+    def _set_bounds(
+        self, image: np.ndarray, lower_q: float, upper_q: float = 1.0
+    ) -> np.ndarray:
+        q_percentile = np.quantile(image, lower_q)
+        _q_percentile = np.quantile(image, upper_q)
+        logging.info(
+            f"lower_q_percentile: {q_percentile}, upper_q_percentile: {_q_percentile}"
+        )
         image[image < q_percentile] = q_percentile
+        image[image > _q_percentile] = _q_percentile
         return image
 
     def equalize_local(self, image: np.ndarray, unsharp_mask: dict) -> np.ndarray:
@@ -186,17 +193,17 @@ class CellImage:
 
     def _normalize(self, image: np.ndarray) -> np.ndarray:
         logging.info(f"Normalizing {image.shape=}")
-        b = image.min()
-        a = image.max()
-        image = (image.astype(float) - a) / (b - a)
-        return image
+        a = image.min()
+        b = image.max()
+        image_normalized = ((image - a) / (b - a)).astype(np.single)
+        return image_normalized
 
 
 if __name__ == "__main__":
-    path_to_file = (
-        get_project_root()
-        / "data/cell-detection/exp/2023-03-05_19:26:45/image_step_7.tif"
-    )
+    # path_to_file = (
+    #     get_project_root()
+    #     / "data/cell-detection/exp/2023-03-05_19:26:45/image_step_7.tif"
+    # )
     # path_to_file = (
     #     get_project_root()
     #     / "data/cell-detection/exp/2023-03-05_16:44:19/image_step_5.tif"
@@ -205,9 +212,11 @@ if __name__ == "__main__":
     #     get_project_root()
     #     / "data/cell-detection/exp/2023-02-26_10:22:51/image_step_9.tif"
     # )
-
-    ci = CellImage(path=path_to_file)
-    repo = get_project_root() / "data/cell-detection/aim"
+    cfg = OmegaConf.load("conf/preprocessing.yaml")
+    cfg.image.slice.x = [0, 20]
+    cfg.image.slice.y = [1000, 1500]
+    ci = CellImage(path=get_project_root() / f"data/{cfg.image.path}", cfg=cfg)
+    ci.read_image()
     # imslice = ci.get_slice(
     #     x=356,
     #     equalize=None,
@@ -220,9 +229,8 @@ if __name__ == "__main__":
     #     q_lower_bound=0.01,
     #     regenerate=False,
     # )
-    img = ci.equalize_local(ci.image, unsharp_mask={"radius": 80, "amount": 2})
 
     # img = io.imread(
     #     "/home/albert/repos/cell_detection/data/cell-detection/exp/2023-03-05_19:26:45/image_step_7.tif"
     # )
-    ci.show_3d(img)
+    ci.show_3d()

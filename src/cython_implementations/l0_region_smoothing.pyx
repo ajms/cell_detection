@@ -154,8 +154,8 @@ def l0_region_smoothing(
     """
     cdef int M = np.product(image.shape, dtype=np.intc).item()
     Y = image.flatten()
-    cdef double lhs, rhs
-    cdef double[:] y_view = Y
+    cdef float lhs, rhs
+    cdef float[:] y_view = Y
     logging.info("Initialize G")
     G = sp.coo_array((np.ones(M), (np.arange(0, M, 1), np.arange(0, M, 1))), dtype=np.intc).tolil()
     w = np.ones(M, dtype=np.intc)
@@ -163,7 +163,7 @@ def l0_region_smoothing(
     logging.info("Initialize c")
     c = create_c_N(image.shape)
     logging.info("Initialization of c finished")
-    cdef double beta
+    cdef float beta
     cdef Py_ssize_t iter, i, j, k, l, jj, kk, ll
     cdef Py_ssize_t jj_max, kk_max, ll_max
     beta = 0.0
