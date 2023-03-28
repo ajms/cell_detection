@@ -62,7 +62,9 @@ class CellImage:
                 logging.info(f"{self.image.min()=}, {self.image.max()=}")
             if self.cfg.image.q_lower_bound:
                 self.image = self._set_bounds(
-                    image=self.image, lower_q=self.cfg.image.q_lower_bound
+                    image=self.image,
+                    lower_q=self.cfg.image.q_lower_bound,
+                    upper_q=self.cfg.image.q_upper_bound,
                 )
             if self.cfg.image.equalize == "global":
                 self.image = self.equalize_histogram(self.image)
@@ -147,13 +149,30 @@ class CellImage:
     def _set_bounds(
         self, image: np.ndarray, lower_q: float, upper_q: float = 1.0
     ) -> np.ndarray:
+        middle_q = upper_q - lower_q
         q_percentile = np.quantile(image, lower_q)
         _q_percentile = np.quantile(image, upper_q)
+        middle_p = _q_percentile - q_percentile
+        logging.info(f"middle_q: {middle_q}, middle_percentile: {middle_p}")
+
         logging.info(
             f"lower_q_percentile: {q_percentile}, upper_q_percentile: {_q_percentile}"
         )
-        image[image < q_percentile] = q_percentile
-        image[image > _q_percentile] = _q_percentile
+        lower_area = image < q_percentile
+        image[lower_area] = (
+            lower_q / middle_q * image[lower_area]
+            + (1 - lower_q / middle_q) * q_percentile
+        )
+        logging.info(
+            f"lower max: {image[lower_area].max()}, min: {image[lower_area].min()}"
+        )
+        upper_area = image > _q_percentile
+        image[upper_area] = (1 - upper_q) / middle_q * (
+            image[upper_area] - _q_percentile
+        ) + _q_percentile
+        logging.info(
+            f"upper max: {image[upper_area].max()}, min: {image[upper_area].min()}"
+        )
         return image
 
     def equalize_local(self, image: np.ndarray, unsharp_mask: dict) -> np.ndarray:
@@ -215,6 +234,8 @@ if __name__ == "__main__":
     cfg = OmegaConf.load("conf/preprocessing.yaml")
     cfg.image.slice.x = [0, 20]
     cfg.image.slice.y = [1000, 1500]
+    cfg.image.q_lower_bound = 0.15
+    cfg.image.q_upper_bound = 0.9
     ci = CellImage(path=get_project_root() / f"data/{cfg.image.path}", cfg=cfg)
     ci.read_image()
     # imslice = ci.get_slice(
